@@ -1,6 +1,6 @@
 # 📋 Guía e Instrucciones de Desarrollo: Sprint 1 (Sin Discrepancias)
 
-Este documento es el **contrato técnico único y vinculante** para **Ale**, **Charango** y **Agu**. Su objetivo es definir las interfaces, protocolos y responsabilidades para que los tres puedan programar en paralelo sin pisarse el código y lograr una integración inmediata para la próxima clase.
+Este documento es el **contrato técnico único y vinculante** para **Ale**, **Charango** y **Agus**. Su objetivo es definir las interfaces, protocolos y responsabilidades para que los tres puedan programar en paralelo sin pisarse el código y lograr una integración inmediata para la próxima clase.
 
 ---
 
@@ -59,7 +59,7 @@ Si el payload está corrupto o no es JSON válido:
 
 ## 🛠️ 2. Especificación por Desarrollador
 
-### 🐳 Agu (Dev 3) — Issue #1: Infraestructura Docker
+### 🐳 Agus (Dev 3) — Issue #1: Infraestructura Docker
 * **Archivos asignados:** `docker-compose.yml`, `.env.example`, `.env`, `init_db.sql`.
 * **Servicios a levantar:**
   * **PostgreSQL:** Versión `15-alpine` en puerto `5435`.
@@ -71,7 +71,7 @@ Si el payload está corrupto o no es JSON válido:
     * Volumen persistente: `redis_data`
     * Healthcheck: `redis-cli ping`
   * **Red compartida:** `telemetria_net` (tipo bridge).
-* **Cómo prueba Agu en solitario:**
+* **Cómo prueba Agus en solitario:**
   ```powershell
   docker compose up -d
   docker compose ps    # Ambos contenedores deben figurar "healthy"
@@ -122,7 +122,7 @@ Para cumplir con la recomendación de la cátedra de realizar **commits periódi
 
 1. **Antes de empezar:** Todos hacen `git pull origin main`.
 2. **Cada uno crea su rama de trabajo:**
-   * Agu: `git checkout -b feature/docker-infra`
+   * Agus: `git checkout -b feature/docker-infra`
    * Charango: `git checkout -b feature/async-server`
    * Ale: `git checkout -b feature/cli-agent`
 3. **Commits frecuentes:** Cada cambio significativo (ej: creación de argumentos CLI, bucle de simulación, conexión de socket) debe commitearse individualmente.
@@ -134,7 +134,7 @@ Para cumplir con la recomendación de la cátedra de realizar **commits periódi
 
 El día de la presentación frente al profesor, el orden exacto de encendido es:
 
-1. **Paso 1 (Agu):** Levanta la infraestructura:
+1. **Paso 1 (Agus):** Levanta la infraestructura:
    ```powershell
    docker compose up -d
    ```

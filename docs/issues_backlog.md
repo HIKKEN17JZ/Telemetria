@@ -11,14 +11,14 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 
 ## 🎯 Sprint 1 — Foco de Hoy (Demo Próxima Clase)
 Para llevar un avance sólido, funcional y sin bloqueos a la próxima clase, cada desarrollador completará un issue clave:
-1. **Agu (Dev 3):** **[Issue #1]** — Infraestructura base con Docker Compose (PostgreSQL + Redis).
+1. **Agus (Dev 3):** **[Issue #1]** — Infraestructura base con Docker Compose (PostgreSQL + Redis).
 2. **Charango (Dev 2):** **[Issue #3]** — Core del Servidor TCP concurrente con `asyncio`.
 3. **Ale (Dev 1):** **[Issue #4]** — Agente vehicular CLI con `argparse` y envío de telemetría por Sockets.
 
 ---
 
 ### [Issue #1] Infraestructura base y orquestación con Docker Compose
-- **Asignado a:** Agu (Dev 3)
+- **Asignado a:** Agus (Dev 3)
 - **Descripción:** Diseñar y configurar la infraestructura contenerizada del proyecto para permitir el despliegue orquestado y reproducible de todos los servicios (PostgreSQL, Redis como message broker de Celery, y servicios base en Python), garantizando un entorno aislado y homogéneo para todo el equipo de desarrollo.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
   - Implementar un archivo `docker-compose.yml` que defina los contenedores para PostgreSQL 15+, Redis Alpine y variables de entorno parametrizadas vía `.env`.
@@ -30,7 +30,7 @@ Para llevar un avance sólido, funcional y sin bloqueos a la próxima clase, cad
 ---
 
 ### [Issue #2] Modelado relacional y persistencia en PostgreSQL
-- **Asignado a:** Agu (Dev 3)
+- **Asignado a:** Agus (Dev 3)
 - **Descripción:** Diseñar la estructura de base de datos relacional para el sistema de telemetría de flota y generar los scripts de inicialización DDL/migraciones para almacenar vehículos, mediciones periódicas (sensores, velocidad, ubicación GPS, combustible) y alertas críticas generadas por eventos del sistema.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
   - Crear tablas normalizadas con claves primarias, foráneas e índices (especialmente en `vehicle_id` y `timestamp` para acelerar consultas temporales de series de tiempo).
@@ -90,7 +90,7 @@ Para llevar un avance sólido, funcional y sin bloqueos a la próxima clase, cad
 ---
 
 ### [Issue #7] Configuración de Celery, Broker y Workers para procesamiento pesado
-- **Asignado a:** Agu (Dev 3)
+- **Asignado a:** Agus (Dev 3)
 - **Descripción:** Configurar e instanciar Celery como sistema de colas de tareas distribuidas utilizando Redis como broker y result backend, preparando el entorno para delegar el cálculo intensivo de analítica de flotas (detección de anomalías, excesos de velocidad y alertas de mantenimiento) fuera del ciclo del servidor de sockets.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
   - Crear la instancia de Celery (`Celery application`) con configuración de serialización segura (JSON), control de concurrencia de workers (`prefork` o `gevent`) y reintentos automáticos.
@@ -114,7 +114,7 @@ Para llevar un avance sólido, funcional y sin bloqueos a la próxima clase, cad
 ---
 
 ### [Issue #9] Pipeline de persistencia masiva en PostgreSQL y reportes agregados vía Celery
-- **Asignado a:** Agu (Dev 3)
+- **Asignado a:** Agus (Dev 3)
 - **Descripción:** Desarrollar las tareas de Celery dedicadas a la inserción en base de datos de los datos telemétricos procesados y la generación periódica/bajo demanda de métricas agregadas de la flota (kilometraje total, consumo estimado, promedio de velocidades y eventos de riesgo).
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
   - Implementar inserciones optimizadas por lotes (`batch inserts` o transacciones controladas) para evitar saturar el pool de conexiones de PostgreSQL ante alto volumen de telemetría.
