@@ -4,9 +4,12 @@ __pycache__/
 *$py.class
 *.so
 .Python
+
+# Environments & Secrets
+.env
+.venv/
 env/
 venv/
-.venv/
 ENV/
 
 # Distribution / packaging
