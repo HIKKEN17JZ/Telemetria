@@ -283,3 +283,4 @@ class FleetDashboardState:
             v.has_critical_alert = False
             v.has_warning_alert = False
         self._notify("alerts_cleared")
+

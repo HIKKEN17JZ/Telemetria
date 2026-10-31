@@ -349,3 +349,4 @@ class FleetDashboardView:
     def run(self) -> None:
         """Inicia el bucle principal de la interfaz gráfica."""
         self.root.mainloop()
+
