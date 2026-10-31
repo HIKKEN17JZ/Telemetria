@@ -32,7 +32,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 * [x] **[Issue #4](https://github.com/HIKKEN17JZ/Telemetria/issues/4):** Modelado relacional y persistencia en PostgreSQL — **Agus** ✅
 * [x] **[Issue #5](https://github.com/HIKKEN17JZ/Telemetria/issues/5):** Protocolo de comunicación, enmarcado y validación de paquetes — **Charango** ✅
 * [x] **[Issue #6](https://github.com/HIKKEN17JZ/Telemetria/issues/6):** Conector TCP resiliente en el Agente con reconexión automática — **Ale** ✅
-* [ ] **[Issue #7](https://github.com/HIKKEN17JZ/Telemetria/issues/7):** Configuración de Celery, Broker y Workers para procesamiento paralelo (CPU-Bound) — **Agus**
+* [x] **[Issue #7](https://github.com/HIKKEN17JZ/Telemetria/issues/7):** Configuración de Celery, Broker y Workers para procesamiento paralelo (CPU-Bound) — **Agus** ✅
 * [ ] **[Issue #8](https://github.com/HIKKEN17JZ/Telemetria/issues/8):** Despacho asíncrono a Celery e IPC mediante Señales UNIX en el Servidor — **Charango**
 * [ ] **[Issue #9](https://github.com/HIKKEN17JZ/Telemetria/issues/9):** Pipeline de persistencia masiva en PostgreSQL, reportes y Diagramación PlantUML — **Agus**
 
@@ -126,7 +126,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #7] Configuración de Celery, Broker y Workers para procesamiento paralelo (CPU-Bound)
-- **Estado:** ⏳ ABIERTA ([#7](https://github.com/HIKKEN17JZ/Telemetria/issues/7))
+- **Estado:** ✅ CERRADA ([#7](https://github.com/HIKKEN17JZ/Telemetria/issues/7))
 - **Asignado a:** Agus (Dev 3 - `@AgusValdebenito`)
 - **Descripción:** Configurar e instanciar Celery como sistema de colas de tareas distribuidas utilizando Redis como broker y result backend, preparando el entorno para delegar el cálculo intensivo de analítica de flotas (detección de anomalías, excesos de velocidad y alertas de mantenimiento) fuera del ciclo del servidor de sockets, demostrando **lógica paralela real con multiprocessing (`prefork`)**.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
