@@ -1,9 +1,10 @@
 """
-Tests unitarios y de integración para Celery y procesamiento analítico (Issue #7).
+Tests unitarios y de integración para Celery y procesamiento analítico (Issue #7 & Issue #9).
 Asignado a: Agus (Dev 3)
 """
 
 import unittest
+from pathlib import Path
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,8 @@ from src.celery_app import app
 from src.tasks import (
     evaluate_telemetry_thresholds,
     process_telemetry,
+    process_telemetry_batch,
+    generate_fleet_summary,
     health_check,
     SPEED_WARNING_LIMIT_KMH,
     SPEED_CRITICAL_LIMIT_KMH,
@@ -114,7 +117,7 @@ class TestCeleryAppConfiguration(unittest.TestCase):
 
 
 class TestCeleryProcessingTask(unittest.TestCase):
-    """Pruebas de la ejecución de la tarea process_telemetry."""
+    """Pruebas de la ejecución de las tareas process_telemetry y batch."""
 
     @patch("src.tasks.DatabaseManager")
     def test_process_telemetry_normal_flow(self, mock_db_cls):
@@ -130,7 +133,6 @@ class TestCeleryProcessingTask(unittest.TestCase):
             "status": "MOVING"
         }
 
-        # Ejecución directa de la tarea Celery
         result = process_telemetry(payload)
 
         self.assertEqual(result["status"], "SUCCESS")
@@ -163,6 +165,82 @@ class TestCeleryProcessingTask(unittest.TestCase):
         mock_db.insert_telemetry.assert_called_once_with(payload)
         self.assertEqual(mock_db.insert_alert.call_count, 3)
         mock_db.close.assert_called_once()
+
+    @patch("src.tasks.DatabaseManager")
+    def test_process_telemetry_batch_flow(self, mock_db_cls):
+        mock_db = MagicMock()
+        mock_db.insert_telemetry_batch.return_value = 3
+        mock_db.insert_alert.return_value = 555
+        mock_db_cls.return_value = mock_db
+
+        batch = [
+            {
+                "vehicle_id": "AUTO-001",
+                "metrics": {"speed_kmh": 50.0, "engine_temp_c": 80.0, "fuel_level_pct": 80.0}
+            },
+            {
+                "vehicle_id": "CAMION-002",
+                "metrics": {"speed_kmh": 135.0, "engine_temp_c": 85.0, "fuel_level_pct": 70.0}  # 1 alerta
+            },
+            {
+                "vehicle_id": "PRUEBA-01",
+                "metrics": {"speed_kmh": 60.0, "engine_temp_c": 110.0, "fuel_level_pct": 5.0}   # 2 alertas
+            }
+        ]
+
+        result = process_telemetry_batch(batch)
+        self.assertEqual(result["status"], "SUCCESS")
+        self.assertEqual(result["processed_count"], 3)
+        self.assertEqual(result["alerts_count"], 3)
+        mock_db.insert_telemetry_batch.assert_called_once_with(batch)
+        self.assertEqual(mock_db.insert_alert.call_count, 3)
+        mock_db.close.assert_called_once()
+
+    @patch("src.tasks.DatabaseManager")
+    def test_generate_fleet_summary_task(self, mock_db_cls):
+        mock_db = MagicMock()
+        mock_db.get_fleet_summary.return_value = {
+            "total_vehicles": 3,
+            "total_telemetry_records": 100,
+            "total_alerts": 2
+        }
+        mock_db.save_fleet_report.return_value = 77
+        mock_db_cls.return_value = mock_db
+
+        result = generate_fleet_summary()
+        self.assertEqual(result["report_id"], 77)
+        self.assertEqual(result["total_vehicles"], 3)
+        mock_db.get_fleet_summary.assert_called_once()
+        mock_db.save_fleet_report.assert_called_once()
+        mock_db.close.assert_called_once()
+
+
+class TestPlantUMLDiagrams(unittest.TestCase):
+    """Verifica que los diagramas PlantUML de arquitectura y flujo de datos estén correctamente creados (Issue #9)."""
+
+    def setUp(self):
+        self.docs_dir = Path(__file__).resolve().parent.parent / "docs"
+
+    def test_architecture_diagram_exists_and_valid(self):
+        arch_file = self.docs_dir / "architecture.puml"
+        self.assertTrue(arch_file.exists(), "Falta el archivo docs/architecture.puml")
+        content = arch_file.read_text(encoding="utf-8")
+        self.assertTrue(content.startswith("@startuml"))
+        self.assertTrue("@enduml" in content)
+        self.assertIn("server.py", content)
+        self.assertIn("Celery", content)
+        self.assertIn("PostgreSQL", content)
+
+    def test_data_flow_diagram_exists_and_valid(self):
+        flow_file = self.docs_dir / "data_flow.puml"
+        self.assertTrue(flow_file.exists(), "Falta el archivo docs/data_flow.puml")
+        content = flow_file.read_text(encoding="utf-8")
+        self.assertTrue(content.startswith("@startuml"))
+        self.assertTrue("@enduml" in content)
+        self.assertIn("SIGHUP", content)
+        self.assertIn("SIGUSR1", content)
+        self.assertIn("Redis", content)
+        self.assertIn("Tkinter", content)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,14 @@
 """
-Capa de acceso a datos y persistencia en PostgreSQL (Issue #4).
+Capa de acceso a datos y persistencia en PostgreSQL (Issue #4 & Issue #9).
 Asignado a: Agus (Dev 3)
 
 Gestiona la conexión con PostgreSQL mediante connection pooling (psycopg_pool),
 manejo de transacciones seguras con rollback automático y operaciones CRUD
-optimizadas para telemetría vehicular, alertas y estado de la flota.
+optimizadas para telemetría vehicular, alertas, persistencia por lotes y reportes agregados.
 """
 
 import os
+import json
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -38,7 +39,6 @@ class DatabaseConfig:
     @classmethod
     def from_env(cls) -> "DatabaseConfig":
         """Carga la configuración desde variables de entorno o archivo .env."""
-        # Intenta cargar variables desde .env si python-dotenv está disponible
         try:
             from dotenv import load_dotenv
             env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -163,8 +163,6 @@ class DatabaseManager:
         Retorna el ID autogenerado del registro.
         """
         data = self._extract_telemetry_dict(payload)
-        
-        # Garantizar que el vehículo existe en la tabla vehicles para evitar FK violation
         self.upsert_vehicle(data["vehicle_id"])
 
         query = """
@@ -291,6 +289,116 @@ class DatabaseManager:
         with self.get_cursor() as cur:
             cur.execute(query, params)
             return cur.fetchall()
+
+    # ==========================================
+    # Operaciones de Reportes Agregados (Issue #9)
+    # ==========================================
+
+    def get_fleet_summary(self) -> dict[str, Any]:
+        """
+        Calcula métricas agregadas en tiempo real de toda la flota:
+        - Total de vehículos activos
+        - Total de mediciones registradas
+        - Promedios y máximos de velocidad y temperatura por vehículo
+        - Conteo de alertas agrupadas por severidad
+        """
+        summary: dict[str, Any] = {
+            "total_vehicles": 0,
+            "total_telemetry_records": 0,
+            "total_alerts": 0,
+            "critical_alerts": 0,
+            "warning_alerts": 0,
+            "vehicles": [],
+            "alerts_breakdown": []
+        }
+
+        with self.get_cursor() as cur:
+            # 1. Totales generales
+            cur.execute("SELECT COUNT(*) AS count FROM vehicles;")
+            summary["total_vehicles"] = cur.fetchone()["count"]
+
+            cur.execute("SELECT COUNT(*) AS count FROM telemetry;")
+            summary["total_telemetry_records"] = cur.fetchone()["count"]
+
+            cur.execute("SELECT COUNT(*) AS count FROM alerts;")
+            summary["total_alerts"] = cur.fetchone()["count"]
+
+            cur.execute("SELECT COUNT(*) AS count FROM alerts WHERE severity = 'CRITICAL';")
+            summary["critical_alerts"] = cur.fetchone()["count"]
+
+            cur.execute("SELECT COUNT(*) AS count FROM alerts WHERE severity = 'WARNING';")
+            summary["warning_alerts"] = cur.fetchone()["count"]
+
+            # 2. Resumen agregado por vehículo
+            veh_query = """
+            SELECT 
+                v.id AS vehicle_id,
+                v.model,
+                v.type,
+                v.status,
+                COUNT(t.id) AS total_points,
+                COALESCE(ROUND(AVG(t.speed_kmh), 2), 0.0) AS avg_speed_kmh,
+                COALESCE(MAX(t.speed_kmh), 0.0) AS max_speed_kmh,
+                COALESCE(ROUND(AVG(t.engine_temp_c), 2), 0.0) AS avg_engine_temp_c,
+                COALESCE(MAX(t.engine_temp_c), 0.0) AS max_engine_temp_c,
+                COALESCE(
+                    (SELECT fuel_level_pct FROM telemetry WHERE vehicle_id = v.id ORDER BY timestamp DESC LIMIT 1),
+                    100.0
+                ) AS last_fuel_pct
+            FROM vehicles v
+            LEFT JOIN telemetry t ON v.id = t.vehicle_id
+            GROUP BY v.id, v.model, v.type, v.status
+            ORDER BY v.id ASC;
+            """
+            cur.execute(veh_query)
+            summary["vehicles"] = cur.fetchall()
+
+            # 3. Desglose de alertas por tipo y severidad
+            alert_query = """
+            SELECT alert_type, severity, COUNT(*) AS count
+            FROM alerts
+            GROUP BY alert_type, severity
+            ORDER BY severity DESC, count DESC;
+            """
+            cur.execute(alert_query)
+            summary["alerts_breakdown"] = cur.fetchall()
+
+        return summary
+
+    def save_fleet_report(self, summary: dict[str, Any]) -> int:
+        """Persiste un snapshot de reporte analítico en la tabla fleet_reports."""
+        query = """
+        INSERT INTO fleet_reports (
+            total_vehicles, total_telemetry_records,
+            total_alerts, critical_alerts, summary_json
+        ) VALUES (
+            %s, %s, %s, %s, %s
+        ) RETURNING id;
+        """
+        summary_clean = {k: v for k, v in summary.items() if k != "summary_json"}
+        with self.get_cursor() as cur:
+            cur.execute(query, (
+                summary.get("total_vehicles", 0),
+                summary.get("total_telemetry_records", 0),
+                summary.get("total_alerts", 0),
+                summary.get("critical_alerts", 0),
+                json.dumps(summary_clean, default=str)
+            ))
+            res = cur.fetchone()
+            return res["id"] if res else 0
+
+    def get_latest_fleet_report(self) -> Optional[dict[str, Any]]:
+        """Recupera el último snapshot de reporte generado."""
+        query = """
+        SELECT id, generated_at, total_vehicles, total_telemetry_records,
+               total_alerts, critical_alerts, summary_json
+        FROM fleet_reports
+        ORDER BY generated_at DESC
+        LIMIT 1;
+        """
+        with self.get_cursor() as cur:
+            cur.execute(query)
+            return cur.fetchone()
 
     # ==========================================
     # Helper Interno de Normalización

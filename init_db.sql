@@ -46,7 +46,20 @@ CREATE TABLE IF NOT EXISTS alerts (
 CREATE INDEX IF NOT EXISTS idx_alerts_vehicle_timestamp ON alerts(vehicle_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
 
--- 4. Vehículos iniciales de prueba (para pruebas con agent.py de Ale)
+-- 4. Tabla de Reportes Agregados de Flota (Issue #9)
+CREATE TABLE IF NOT EXISTS fleet_reports (
+    id BIGSERIAL PRIMARY KEY,
+    generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    total_vehicles INTEGER NOT NULL DEFAULT 0,
+    total_telemetry_records BIGINT NOT NULL DEFAULT 0,
+    total_alerts INTEGER NOT NULL DEFAULT 0,
+    critical_alerts INTEGER NOT NULL DEFAULT 0,
+    summary_json JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_reports_generated_at ON fleet_reports(generated_at DESC);
+
+-- 5. Vehículos iniciales de prueba (para pruebas con agent.py de Ale)
 INSERT INTO vehicles (id, model, type, status) VALUES
     ('AUTO-001', 'Sedan Corp', 'CAR', 'ACTIVE'),
     ('CAMION-002', 'Heavy Duty 500', 'TRUCK', 'ACTIVE'),

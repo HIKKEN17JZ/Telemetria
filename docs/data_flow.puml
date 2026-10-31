@@ -1,0 +1,100 @@
+@startuml data_flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+autonumber "<b>[00]</b>"
+
+title Diagrama de Secuencia: Flujo de Telemetría End-to-End, IPC, Celery y Persistencia
+
+actor "Vehículo / Sensor" as Driver #LightGreen
+participant "Agente CLI\n(agent.py)" as Agent #LightGreen
+participant "Servidor TCP\n(server.py / asyncio)" as Server #LightBlue
+actor "SysAdmin\n(Terminal UNIX)" as Admin #Orange
+queue "Redis Broker\n(:6380)" as Redis #LightPink
+participant "Celery Worker\n(src/tasks.py)" as Worker #Lavender
+database "PostgreSQL\n(telemetria :5435)" as DB #LightCyan
+participant "API Gateway\n(Gunicorn/Uvicorn)" as API #LightYellow
+participant "Dashboard\n(Tkinter GUI)" as GUI #Plum
+
+== 1. Recolección y Transmisión por Sockets TCP ==
+Driver -> Agent: Simulación física (Velocidad, RPM, Temp, GPS)
+activate Agent
+Agent -> Agent: Construye TelemetryPayload (JSON + '\n')
+Agent -> Server: Envía bytes por socket TCP (:5000)
+activate Server
+
+Server -> Server: reader.readline() delimita por '\\n'
+Server -> Server: ProtocolValidator.validate_raw()
+alt Payload Válido
+    Server --> Agent: Responde ACK {"status": "ACK", "server_time": ...}\n
+else Payload Inválido
+    Server --> Agent: Responde NACK {"status": "NACK", "error": ...}\n
+end
+deactivate Agent
+
+== 2. Despacho Asíncrono a Celery (Sin Bloquear Event Loop) ==
+Server -> Redis: task.delay(payload) [process_telemetry]
+note right of Server
+  El Servidor asyncio NO espera
+  el procesamiento ni la BD;
+  queda 100% libre para atender
+  otros vehículos concurrentes.
+end note
+deactivate Server
+
+== 3. IPC: Control Operativo en Caliente mediante Señales UNIX ==
+Admin -> Server: kill -s SIGHUP <server_pid>
+activate Server
+Server -> Server: loop.add_signal_handler(SIGHUP)
+note right of Server
+  Recarga dinámica de umbrales
+  y nivel de logging sin reiniciar
+  ni cortar conexiones activas.
+end note
+Admin -> Server: kill -s SIGUSR1 <server_pid>
+Server -> Server: Vuelca métricas de clientes conectados a log
+deactivate Server
+
+== 4. Procesamiento Paralelo y Evaluación de Umbrales (Celery) ==
+Redis -> Worker: Despacha tarea a worker prefork
+activate Worker
+Worker -> Worker: evaluate_telemetry_thresholds(payload)
+alt speed > 120 km/h
+    Worker -> Worker: Genera alerta EXCESS_SPEED (WARNING / CRITICAL)
+end
+alt engine_temp > 105°C
+    Worker -> Worker: Genera alerta HIGH_ENGINE_TEMP (CRITICAL)
+end
+alt fuel_level < 10%
+    Worker -> Worker: Genera alerta LOW_FUEL (WARNING)
+end
+
+== 5. Persistencia Masiva y Transacciones ACID (PostgreSQL) ==
+Worker -> DB: DatabaseManager.get_connection() (Pool :5435)
+activate DB
+Worker -> DB: INSERT INTO telemetry (...) RETURNING id
+opt Si se generaron alertas
+    Worker -> DB: INSERT INTO alerts (...)
+end
+Worker -> DB: conn.commit()
+deactivate DB
+Worker --> Redis: Actualiza estado de tarea (SUCCESS)
+deactivate Worker
+
+== 6. Consulta y Visualización en Dashboard Tkinter ==
+loop Sondeo periódico o WebSocket en Hilo Secundario
+    GUI -> API: GET /api/vehicles & /api/alerts
+    activate API
+    API -> DB: Query agregada (get_fleet_summary)
+    activate DB
+    DB --> API: Retorna resumen analítico de flota
+    deactivate DB
+    API --> GUI: Respuesta JSON estructurada
+    deactivate API
+    GUI -> GUI: Actualiza tablas, velocímetros y paneles de alerta (UI Thread Seguro)
+end
+
+@enduml

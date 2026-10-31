@@ -1,0 +1,82 @@
+@startuml architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+title Sistema de Telemetría de Flota Distribuido - Arquitectura de Componentes (Computación 2)
+
+package "Capa de Vehículos (Cliente CLI)" #E8F5E9 {
+    component [agent.py\n(Agente Vehicular CLI)] as Agent1 <<Cliente>>
+    component [agent.py\n(Vehículo 2)] as Agent2 <<Cliente>>
+    component [src/network.py\n(TelemetryClient & Buffer)] as NetClient <<Resiliencia>>
+    component [src/simulator.py\n(Física y Métricas)] as Sim <<Simulador>>
+
+    Agent1 --> Sim
+    Agent1 --> NetClient
+    Agent2 --> NetClient
+}
+
+package "Capa de Ingesta y Concurrencia (Servidor TCP)" #E3F2FD {
+    component [server.py\n(Servidor Asyncio TCP)] as Server <<asyncio.start_server>>
+    component [src/protocol.py\n(Framing '\\n' & ACK/NACK)] as Protocol <<Protocolo>>
+    interface "TCP Socket :5000" as SocketPort
+
+    NetClient -down-> SocketPort : Stream JSON + '\n'
+    SocketPort -down-> Server
+    Server --> Protocol : Valida paquete
+    Server ..> NetClient : ACK / NACK
+}
+
+package "Capa de Señales e IPC" #FFF3E0 {
+    control "Manejador de Señales UNIX" as IPCManager
+    actor "Administrador / S.O." as Admin
+
+    Admin -right-> IPCManager : SIGHUP (Recargar Config)\nSIGUSR1 (Métricas de Servidor)
+    IPCManager -up-> Server : Control en caliente sin reinicio
+}
+
+package "Capa de Mensajería y Broker" #FCE4EC {
+    queue "Redis 7 (Alpine)\nBroker & Result Backend\nPuerto :6380" as RedisBroker <<Message Broker>>
+    Server -down-> RedisBroker : task.delay(payload)\n(No bloqueante)
+}
+
+package "Capa de Procesamiento Distribuido (Workers Paralelos)" #EDE7F6 {
+    component "src/celery_app.py\n(Celery Application)" as CeleryApp
+    component "src/tasks.py\n(process_telemetry & batch)" as Tasks <<Workers Prefork>>
+
+    RedisBroker -down-> CeleryApp : Consume cola
+    CeleryApp --> Tasks : Ejecuta en procesos paralelos (CPU-Bound)
+}
+
+package "Capa de Persistencia Relacional" #E0F2F1 {
+    database "PostgreSQL 15 (Alpine)\nBase de Datos: telemetria\nPuerto :5435" as PostgresDB {
+        folder "Tablas Normalizadas" {
+            [vehicles]
+            [telemetry]
+            [alerts]
+            [fleet_reports]
+        }
+    }
+    component "src/database.py\n(DatabaseManager & Pool)" as DBPool <<Connection Pooling>>
+
+    Tasks -down-> DBPool : Inserción individual & batch
+    DBPool -down-> PostgresDB : Transacciones ACID (Commit/Rollback)
+}
+
+package "Capa de Exposición y API Gateway" #FFFDE7 {
+    component [API Gateway\n(Gunicorn + Uvicorn Workers/Threads)] as APIGateway <<FastAPI/Starlette>>
+    APIGateway -up-> DBPool : Consulta lecturas agregadas (/api)
+}
+
+package "Capa de Visualización (Semi-Frontend)" #F3E5F5 {
+    component [Dashboard de Escritorio\n(Tkinter + ttk)] as TkinterApp <<Interfaz de Usuario>>
+    component [Worker Thread en Background] as UIThread <<Multithreading>>
+
+    TkinterApp --> UIThread : Desacoplado de la UI
+    UIThread -left-> APIGateway : HTTP REST / WebSockets
+}
+
+@enduml

@@ -1,5 +1,5 @@
 """
-Tests unitarios y de integración para la capa de base de datos (Issue #4).
+Tests unitarios y de integración para la capa de base de datos (Issue #4 & Issue #9).
 Asignado a: Agus (Dev 3)
 """
 
@@ -98,7 +98,6 @@ class TestDatabaseIntegrationLive(unittest.TestCase):
         cls.config = DatabaseConfig.from_env()
         cls.db = DatabaseManager(cls.config)
         try:
-            # Prueba rápida de conectividad
             with cls.db.get_cursor() as cur:
                 cur.execute("SELECT 1;")
             cls.is_db_available = True
@@ -185,7 +184,7 @@ class TestDatabaseIntegrationLive(unittest.TestCase):
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": {"lat": -32.8, "lon": -68.8},
             "metrics": {
-                "speed_kmh": -20.0,  # Inválido según CHECK
+                "speed_kmh": -20.0,
                 "rpm": 1000,
                 "fuel_level_pct": 50.0,
                 "engine_temp_c": 80.0
@@ -194,6 +193,35 @@ class TestDatabaseIntegrationLive(unittest.TestCase):
         }
         with self.assertRaises(Exception):
             self.db.insert_telemetry(invalid_payload)
+
+    def test_get_fleet_summary(self):
+        """Prueba la agregación analítica de la flota completa (Issue #9)."""
+        summary = self.db.get_fleet_summary()
+        self.assertIsInstance(summary, dict)
+        self.assertIn("total_vehicles", summary)
+        self.assertIn("total_telemetry_records", summary)
+        self.assertIn("total_alerts", summary)
+        self.assertIn("vehicles", summary)
+        self.assertIn("alerts_breakdown", summary)
+        self.assertGreaterEqual(summary["total_vehicles"], 1)
+
+    def test_save_and_get_latest_fleet_report(self):
+        """Prueba la persistencia de snapshots analíticos de flota (Issue #9)."""
+        mock_summary = {
+            "total_vehicles": 3,
+            "total_telemetry_records": 150,
+            "total_alerts": 4,
+            "critical_alerts": 2,
+            "vehicles": [{"vehicle_id": "AUTO-001", "avg_speed_kmh": 65.2}]
+        }
+        report_id = self.db.save_fleet_report(mock_summary)
+        self.assertGreater(report_id, 0)
+
+        latest = self.db.get_latest_fleet_report()
+        self.assertIsNotNone(latest)
+        self.assertEqual(latest["total_vehicles"], 3)
+        self.assertEqual(latest["total_alerts"], 4)
+        self.assertEqual(latest["critical_alerts"], 2)
 
 
 if __name__ == "__main__":
