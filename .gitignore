@@ -48,3 +48,5 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+boot.ps1
+boot.sh
