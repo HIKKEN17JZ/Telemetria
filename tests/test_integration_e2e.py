@@ -9,7 +9,7 @@ import threading
 import time
 import unittest
 
-from server import run_server
+from server import run_server, server_config
 from src.cli import AgentConfig
 from src.simulator import VehicleSimulator
 from src.network import TelemetryClient
@@ -19,17 +19,30 @@ class TestIntegrationServerAgent(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Desactivar despacho a Celery durante el test de sockets puro para evitar threads huérfanos
+        cls._orig_celery_dispatch = server_config.enable_celery_dispatch
+        server_config.enable_celery_dispatch = False
+
         cls.host = "127.0.0.1"
         cls.port = 5001  # Puerto de test
         cls.loop = asyncio.new_event_loop()
 
         def start_loop():
             asyncio.set_event_loop(cls.loop)
-            cls.loop.run_until_complete(run_server(cls.host, cls.port))
+            try:
+                cls.loop.run_until_complete(run_server(cls.host, cls.port))
+            except (RuntimeError, asyncio.CancelledError):
+                pass
 
         cls.server_thread = threading.Thread(target=start_loop, daemon=True)
         cls.server_thread.start()
         time.sleep(0.5)  # Dar tiempo a que el socket de escucha esté activo
+
+    @classmethod
+    def tearDownClass(cls):
+        server_config.enable_celery_dispatch = cls._orig_celery_dispatch
+        if hasattr(cls, "loop") and cls.loop.is_running():
+            cls.loop.call_soon_threadsafe(cls.loop.stop)
 
     def test_agent_to_server_communication_and_ack(self):
         """Verifica que un agente envíe telemetría real y reciba el ACK de server.py."""
