@@ -1,8 +1,20 @@
+"""
+Servidor Asíncrono Concurrente de Telemetría (Issue #2 & Issue #5).
+Asignado a: Charango (Dev 2 - @Charango21)
+
+Implementa:
+- Servidor TCP concurrente de alto rendimiento basado en asyncio (I/O no bloqueante).
+- Manejo estricto de conexiones simultáneas mediante StreamReader y StreamWriter.
+- Protocolo delimitado por fin de línea ('\\n') con validación robusta y acuses de recibo ACK/NACK.
+- Registro en memoria de clientes conectados activamente.
+"""
+
 import asyncio
 import argparse
-import json
 import logging
-from datetime import datetime, timezone
+from typing import Dict, Tuple
+
+from src.protocol import ProtocolValidator, ProtocolResponse, ProtocolError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,9 +22,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Registro en memoria de sesiones activas: client_id -> (peername, vehicle_id)
+active_clients: Dict[int, Tuple[str, str]] = {}
+
+
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """Maneja la conexión TCP individual de un cliente de telemetría de forma no bloqueante."""
     peername = writer.get_extra_info('peername')
-    logger.info(f"New connection from {peername}")
+    client_id = id(writer)
+    active_clients[client_id] = (str(peername), "UNKNOWN")
+    logger.info(f"New connection from {peername} (Active: {len(active_clients)})")
     
     try:
         while True:
@@ -26,29 +45,24 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 continue
                 
             try:
-                data = json.loads(message_str)
-                vehicle_id = data.get("vehicle_id", "UNKNOWN")
-                logger.info(f"Received telemetry from {vehicle_id}: {data}")
-                
-                response = {
-                    "status": "ACK",
-                    "vehicle_id": vehicle_id,
-                    "server_time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-                }
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON received from {peername}: {message_str}")
-                response = {
-                    "status": "NACK",
-                    "error": "Invalid JSON format"
-                }
+                # Validar paquete mediante la capa de aplicación de protocolo (Issue #5)
+                frame = ProtocolValidator.validate_raw(message_str)
+                active_clients[client_id] = (str(peername), frame.vehicle_id)
+                logger.info(
+                    f"Received valid telemetry from {frame.vehicle_id}: "
+                    f"speed={frame.metrics.speed_kmh}km/h, rpm={frame.metrics.rpm}, "
+                    f"fuel={frame.metrics.fuel_level_pct}%, temp={frame.metrics.engine_temp_c}°C"
+                )
+                response = ProtocolResponse.ack(frame.vehicle_id)
+
+            except ProtocolError as e:
+                logger.warning(f"Protocol validation error from {peername}: {e}")
+                response = ProtocolResponse.nack(str(e))
             except Exception as e:
-                logger.error(f"Error processing message from {peername}: {e}")
-                response = {
-                    "status": "NACK",
-                    "error": str(e)
-                }
+                logger.error(f"Unexpected error processing message from {peername}: {e}")
+                response = ProtocolResponse.nack(f"Server error: {e}")
                 
-            response_bytes = (json.dumps(response) + "\n").encode("utf-8")
+            response_bytes = ProtocolResponse.to_bytes(response)
             writer.write(response_bytes)
             await writer.drain()
             
@@ -57,14 +71,17 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
     except Exception as e:
         logger.error(f"Unexpected error with {peername}: {e}")
     finally:
-        logger.info(f"Closing connection for {peername}")
+        active_clients.pop(client_id, None)
+        logger.info(f"Closing connection for {peername} (Active: {len(active_clients)})")
         writer.close()
         try:
             await writer.wait_closed()
         except Exception:
             pass
 
+
 async def run_server(host: str, port: int) -> None:
+    """Arranca el bucle de eventos del servidor TCP concurrente."""
     server = await asyncio.start_server(handle_client, host, port)
     addr = server.sockets[0].getsockname()
     logger.info(f"Telemetry server serving on {addr}")
@@ -72,7 +89,9 @@ async def run_server(host: str, port: int) -> None:
     async with server:
         await server.serve_forever()
 
+
 def main() -> None:
+    """Punto de entrada CLI para el servidor de telemetría."""
     parser = argparse.ArgumentParser(description="Concurrent Asyncio Telemetry Server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind server to")
     parser.add_argument("--port", type=int, default=5000, help="Port to bind server to")
@@ -83,6 +102,7 @@ def main() -> None:
         asyncio.run(run_server(args.host, args.port))
     except KeyboardInterrupt:
         logger.info("Server stopped by user (KeyboardInterrupt)")
+
 
 if __name__ == "__main__":
     main()

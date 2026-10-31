@@ -20,7 +20,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 
 ### ⚙️ Sprint 2 — Procesamiento Distribuido (Celery), Persistencia en BD e IPC (En Curso)
 * [x] **[Issue #4](https://github.com/HIKKEN17JZ/Telemetria/issues/4):** Modelado relacional y persistencia en PostgreSQL — **Agus** ✅
-* [ ] **[Issue #5](https://github.com/HIKKEN17JZ/Telemetria/issues/5):** Protocolo de comunicación, enmarcado y validación de paquetes — **Charango**
+* [x] **[Issue #5](https://github.com/HIKKEN17JZ/Telemetria/issues/5):** Protocolo de comunicación, enmarcado y validación de paquetes — **Charango** ✅
 * [ ] **[Issue #6](https://github.com/HIKKEN17JZ/Telemetria/issues/6):** Conector TCP resiliente en el Agente con reconexión automática — **Ale**
 * [ ] **[Issue #7](https://github.com/HIKKEN17JZ/Telemetria/issues/7):** Configuración de Celery, Broker y Workers para procesamiento pesado — **Agus**
 * [ ] **[Issue #8](https://github.com/HIKKEN17JZ/Telemetria/issues/8):** Despacho asíncrono a Celery e IPC mediante Señales UNIX en el Servidor — **Charango**
@@ -90,7 +90,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #5] Protocolo de comunicación, enmarcado y validación de paquetes
-- **Estado:** 🟡 ABIERTA ([#5](https://github.com/HIKKEN17JZ/Telemetria/issues/5))
+- **Estado:** ✅ CERRADA ([#5](https://github.com/HIKKEN17JZ/Telemetria/issues/5))
 - **Asignado a:** Charango (Dev 2 - `@Charango21`)
 - **Descripción:** Definir y programar el protocolo de capa de aplicación sobre TCP para delimitar los mensajes entre el agente del vehículo y el servidor (evitando problemas de paquetes fragmentados o pegados en el buffer TCP), realizando el parseo y validación de integridad de los datos recibidos.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**

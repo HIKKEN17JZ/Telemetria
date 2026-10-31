@@ -2,6 +2,7 @@ import asyncio
 import json
 import pytest
 from server import handle_client
+from src.protocol import ProtocolFraming
 
 @pytest.mark.asyncio
 async def test_valid_telemetry_returns_ack():
@@ -72,6 +73,42 @@ async def test_invalid_json_returns_nack():
         assert response["status"] == "NACK"
         assert "error" in response
         
+        writer.close()
+        await writer.wait_closed()
+    finally:
+        server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
+
+@pytest.mark.asyncio
+async def test_schema_violation_returns_nack():
+    """Verifica que un payload JSON sintácticamente válido pero sin el esquema de telemetría devuelva NACK."""
+    server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
+    addr = server.sockets[0].getsockname()
+
+    async def run_server_task():
+        async with server:
+            await server.serve_forever()
+
+    server_task = asyncio.create_task(run_server_task())
+
+    try:
+        reader, writer = await asyncio.open_connection(addr[0], addr[1])
+
+        # Falta location, metrics, status, timestamp
+        payload = {"vehicle_id": "INCOMPLETO"}
+        writer.write(ProtocolFraming.encode(payload))
+        await writer.drain()
+
+        response_data = await reader.readline()
+        response = json.loads(response_data.decode("utf-8").strip())
+
+        assert response["status"] == "NACK"
+        assert "error" in response
+        assert "obligatorios" in response["error"].lower()
+
         writer.close()
         await writer.wait_closed()
     finally:
