@@ -18,6 +18,8 @@ class TestAgentCLI(unittest.TestCase):
         self.assertEqual(config.server_port, 5000)
         self.assertEqual(config.interval, 2.0)
         self.assertEqual(config.mode, "simulation")
+        self.assertEqual(config.buffer_size, 1000)
+        self.assertEqual(config.max_backoff, 30.0)
 
     def test_custom_arguments(self):
         """Verifica que se parseen correctamente argumentos personalizados."""
@@ -26,7 +28,9 @@ class TestAgentCLI(unittest.TestCase):
             "--server-host", "192.168.1.100",
             "--server-port", "6000",
             "--interval", "0.5",
-            "--mode", "simulation"
+            "--mode", "simulation",
+            "--buffer-size", "500",
+            "--max-backoff", "15.0"
         ]
         args = parse_arguments(custom_args)
         config = validate_config(args)
@@ -36,6 +40,8 @@ class TestAgentCLI(unittest.TestCase):
         self.assertEqual(config.server_port, 6000)
         self.assertEqual(config.interval, 0.5)
         self.assertEqual(config.mode, "simulation")
+        self.assertEqual(config.buffer_size, 500)
+        self.assertEqual(config.max_backoff, 15.0)
 
     def test_invalid_port_range(self):
         """Verifica que un puerto fuera de rango (1-65535) arroje error de validación."""
@@ -62,6 +68,20 @@ class TestAgentCLI(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             validate_config(args)
         self.assertIn("vehicle", str(ctx.exception).lower())
+
+    def test_invalid_buffer_size(self):
+        """Verifica que buffer_size <= 0 arroje ValueError."""
+        args = parse_arguments(["--buffer-size", "0"])
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(args)
+        self.assertIn("búfer", str(ctx.exception).lower())
+
+    def test_invalid_max_backoff(self):
+        """Verifica que max_backoff <= 0 arroje ValueError."""
+        args = parse_arguments(["--max-backoff", "-5.0"])
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(args)
+        self.assertIn("reintento", str(ctx.exception).lower())
 
 
 if __name__ == "__main__":

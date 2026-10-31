@@ -31,7 +31,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ### ⚙️ Sprint 2 — Procesamiento Distribuido (Celery), Persistencia en BD e IPC (En Curso)
 * [x] **[Issue #4](https://github.com/HIKKEN17JZ/Telemetria/issues/4):** Modelado relacional y persistencia en PostgreSQL — **Agus** ✅
 * [x] **[Issue #5](https://github.com/HIKKEN17JZ/Telemetria/issues/5):** Protocolo de comunicación, enmarcado y validación de paquetes — **Charango** ✅
-* [ ] **[Issue #6](https://github.com/HIKKEN17JZ/Telemetria/issues/6):** Conector TCP resiliente en el Agente con reconexión automática — **Ale**
+* [x] **[Issue #6](https://github.com/HIKKEN17JZ/Telemetria/issues/6):** Conector TCP resiliente en el Agente con reconexión automática — **Ale** ✅
 * [ ] **[Issue #7](https://github.com/HIKKEN17JZ/Telemetria/issues/7):** Configuración de Celery, Broker y Workers para procesamiento paralelo (CPU-Bound) — **Agus**
 * [ ] **[Issue #8](https://github.com/HIKKEN17JZ/Telemetria/issues/8):** Despacho asíncrono a Celery e IPC mediante Señales UNIX en el Servidor — **Charango**
 * [ ] **[Issue #9](https://github.com/HIKKEN17JZ/Telemetria/issues/9):** Pipeline de persistencia masiva en PostgreSQL, reportes y Diagramación PlantUML — **Agus**
@@ -113,7 +113,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #6] Conector TCP resiliente en el Agente con reconexión automática
-- **Estado:** ⏳ ABIERTA ([#6](https://github.com/HIKKEN17JZ/Telemetria/issues/6))
+- **Estado:** ✅ CERRADA ([#6](https://github.com/HIKKEN17JZ/Telemetria/issues/6))
 - **Asignado a:** Ale (Dev 1 - `@HIKKEN17JZ`)
 - **Descripción:** Integrar en el agente CLI la capa de comunicación de red por sockets, asegurando el envío periódico de los paquetes de telemetría hacia el servidor y dotándolo de tolerancia a fallos y resiliencia ante pérdidas de conectividad celular/red típicas en vehículos en movimiento.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**

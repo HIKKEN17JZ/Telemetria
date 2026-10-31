@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Agente Vehicular CLI - Transmisor de Telemetría (Issue #3)
-Asignado a: Ale (Dev 1)
+Agente Vehicular CLI - Transmisor de Telemetría Resiliente (Issue #3 e Issue #6)
+Asignado a: Ale (Dev 1 - @HIKKEN17JZ)
 
 Punto de entrada principal para la ejecución del agente vehicular en terminal.
-Combina parseo de argumentos CLI, simulación de métricas vehiculares y transmisión
-TCP resiliente hacia el servidor asíncrono.
+Combina parseo de argumentos CLI, simulación de dinámicas vehiculares,
+transmisión TCP resiliente con buffer offline FIFO y reconexión exponencial con jitter.
 """
 
 import logging
@@ -17,6 +17,8 @@ from typing import Optional
 from src.cli import parse_arguments, validate_config, AgentConfig
 from src.simulator import VehicleSimulator
 from src.network import TelemetryClient
+from src.buffer import TelemetryBuffer
+from src.backoff import ExponentialBackoff
 
 
 def setup_logger() -> logging.Logger:
@@ -30,7 +32,7 @@ def setup_logger() -> logging.Logger:
 
 
 def calculate_initial_coordinates(vehicle_id: str) -> tuple[float, float]:
-    """Genera coordenadas iniciales dispersas basadas en el hash del ID para que no colisionen."""
+    """Genera coordenadas iniciales dispersas basadas en el hash del ID para evitar colisiones."""
     base_lat = -32.8895
     base_lon = -68.8458
     offset_hash = hash(vehicle_id) % 1000
@@ -40,7 +42,7 @@ def calculate_initial_coordinates(vehicle_id: str) -> tuple[float, float]:
 
 
 class AgentApp:
-    """Orquestador principal del ciclo de vida del agente."""
+    """Orquestador principal del ciclo de vida del agente vehicular."""
 
     def __init__(self, config: AgentConfig, logger: logging.Logger):
         self.config = config
@@ -53,10 +55,22 @@ class AgentApp:
             start_lat=init_lat,
             start_lon=init_lon
         )
+
+        # Buffer offline acotado y estrategia de retroceso exponencial con jitter
+        buffer = TelemetryBuffer(max_size=config.buffer_size)
+        backoff = ExponentialBackoff(
+            initial_delay=1.0,
+            max_delay=config.max_backoff,
+            multiplier=2.0,
+            jitter=True
+        )
+
         self.client = TelemetryClient(
             host=config.server_host,
             port=config.server_port,
-            timeout=3.0
+            timeout=3.0,
+            buffer=buffer,
+            backoff=backoff
         )
 
     def stop(self) -> None:
@@ -64,17 +78,20 @@ class AgentApp:
         self.running = False
 
     def run(self) -> None:
-        """Ejecuta el bucle continuo de muestreo y transmisión periódica."""
+        """Ejecuta el bucle continuo de muestreo y transmisión periódica resiliente."""
         self.running = True
-        self.logger.info("=" * 60)
-        self.logger.info(f"🚗 Iniciando Agente Vehicular: {self.config.vehicle_id}")
+        self.logger.info("=" * 65)
+        self.logger.info(f"🚗 Iniciando Agente Vehicular Resiliente: {self.config.vehicle_id}")
         self.logger.info(f"🎯 Servidor Destino: {self.config.server_host}:{self.config.server_port}")
-        self.logger.info(f"⏱️ Frecuencia: cada {self.config.interval}s | Modo: {self.config.mode}")
-        self.logger.info("=" * 60)
+        self.logger.info(
+            f"⏱️ Frecuencia: cada {self.config.interval}s | "
+            f"Búfer: {self.config.buffer_size} max | Modo: {self.config.mode}"
+        )
+        self.logger.info("=" * 65)
 
         # Intentar conexión inicial
         if not self.client.connect():
-            self.logger.warning("Servidor no disponible al iniciar. Se reintentará en el primer envío...")
+            self.logger.warning("⚠️ Servidor no disponible al iniciar. Se acumulará telemetría en buffer local.")
 
         while self.running:
             try:
@@ -90,15 +107,18 @@ class AgentApp:
                     f"GPS: ({coords.lat:.4f}, {coords.lon:.4f})"
                 )
 
-                # 2. Transmitir por socket y procesar acuse de recibo
-                response = self.client.send(payload)
+                # 2. Transmisión resiliente con soporte de buffer offline
+                response = self.client.send_or_buffer(payload)
                 if response.success:
                     ack_status = response.data.get("status") if response.data else "OK"
                     self.logger.info(f"   📥 ACK recibido del servidor: {ack_status}")
-                else:
+                elif response.buffered:
                     self.logger.warning(
-                        f"   ⚠️ Falló transmisión: {response.error_message}. Reintentando en próximo ciclo..."
+                        f"   ⚠️ Modo Offline: medición encolada en buffer local (Total en cola: {response.queue_size}). "
+                        f"Próximo reintento calculado: {self.client.backoff.last_delay:.1f}s"
                     )
+                else:
+                    self.logger.warning(f"   ⚠️ Falló transmisión: {response.error_message}")
 
                 # 3. Esperar el intervalo indicado
                 time.sleep(self.config.interval)
@@ -107,6 +127,10 @@ class AgentApp:
                 self.logger.error(f"Error inesperado en el ciclo del agente: {e}")
                 time.sleep(self.config.interval)
 
+        # Graceful shutdown
+        pending = len(self.client.buffer)
+        if pending > 0:
+            self.logger.info(f"📦 El agente se detuvo con {pending} mediciones pendientes en búfer local.")
         self.client.disconnect()
         self.logger.info("✅ Agente desconectado limpiamente.")
 

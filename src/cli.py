@@ -16,6 +16,8 @@ class AgentConfig:
     server_port: int
     interval: float
     mode: str
+    buffer_size: int = 1000
+    max_backoff: float = 30.0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="simulation",
         help="Modo de generación de telemetría"
     )
+    parser.add_argument(
+        "--buffer-size",
+        type=int,
+        default=1000,
+        help="Capacidad máxima del búfer offline en memoria"
+    )
+    parser.add_argument(
+        "--max-backoff",
+        type=float,
+        default=30.0,
+        help="Tiempo máximo de espera (segundos) para reintentos exponenciales"
+    )
 
     return parser
 
@@ -85,10 +99,24 @@ def validate_config(args: argparse.Namespace) -> AgentConfig:
             f"El intervalo de muestreo debe ser mayor a 0 segundos. Valor recibido: {args.interval}"
         )
 
+    buffer_size = getattr(args, "buffer_size", 1000)
+    if buffer_size <= 0:
+        raise ValueError(
+            f"El tamaño del búfer debe ser mayor a 0. Valor recibido: {buffer_size}"
+        )
+
+    max_backoff = getattr(args, "max_backoff", 30.0)
+    if max_backoff <= 0:
+        raise ValueError(
+            f"El tiempo máximo de reintento debe ser mayor a 0. Valor recibido: {max_backoff}"
+        )
+
     return AgentConfig(
         vehicle_id=vehicle_id,
         server_host=args.server_host.strip(),
         server_port=args.server_port,
         interval=args.interval,
-        mode=args.mode
+        mode=args.mode,
+        buffer_size=buffer_size,
+        max_backoff=max_backoff
     )
