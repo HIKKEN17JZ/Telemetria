@@ -39,7 +39,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### 🖥️ Sprint 3 — Semi-Frontend de Escritorio (Tkinter), API Gateway y Tiempo Real (Próximo)
-* [ ] **[Issue #10](https://github.com/HIKKEN17JZ/Telemetria/issues/10):** Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota — **Ale**
+* [x] **[Issue #10](https://github.com/HIKKEN17JZ/Telemetria/issues/10):** Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota — **Ale** ✅
 * [ ] **[Issue #11](https://github.com/HIKKEN17JZ/Telemetria/issues/11):** API Gateway con Gunicorn y Uvicorn (Workers y Threads) — **Charango**
 * [ ] **[Issue #12](https://github.com/HIKKEN17JZ/Telemetria/issues/12):** Integración en tiempo real del Dashboard Tkinter con Multithreading — **Ale**
 
@@ -165,7 +165,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #10] Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota
-- **Estado:** ⏳ ABIERTA ([#10](https://github.com/HIKKEN17JZ/Telemetria/issues/10))
+- **Estado:** ✅ CERRADA ([#10](https://github.com/HIKKEN17JZ/Telemetria/issues/10))
 - **Asignado a:** Ale (Dev 1 - `@HIKKEN17JZ`)
 - **Descripción:** Desarrollar una interfaz gráfica de escritorio interactiva en Python nativo utilizando **Tkinter** para el monitoreo y gestión en tiempo real de la flota de vehículos, presentando tablas de estado, velocímetros/indicadores y visor de eventos críticos en reemplazo de una aplicación web compleja.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
