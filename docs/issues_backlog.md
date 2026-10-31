@@ -19,7 +19,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### ⚙️ Sprint 2 — Procesamiento Distribuido (Celery), Persistencia en BD e IPC (En Curso)
-* [ ] **[Issue #4](https://github.com/HIKKEN17JZ/Telemetria/issues/4):** Modelado relacional y persistencia en PostgreSQL — **Agus**
+* [x] **[Issue #4](https://github.com/HIKKEN17JZ/Telemetria/issues/4):** Modelado relacional y persistencia en PostgreSQL — **Agus** ✅
 * [ ] **[Issue #5](https://github.com/HIKKEN17JZ/Telemetria/issues/5):** Protocolo de comunicación, enmarcado y validación de paquetes — **Charango**
 * [ ] **[Issue #6](https://github.com/HIKKEN17JZ/Telemetria/issues/6):** Conector TCP resiliente en el Agente con reconexión automática — **Ale**
 * [ ] **[Issue #7](https://github.com/HIKKEN17JZ/Telemetria/issues/7):** Configuración de Celery, Broker y Workers para procesamiento pesado — **Agus**
@@ -77,7 +77,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #4] Modelado relacional y persistencia en PostgreSQL
-- **Estado:** 🟡 ABIERTA ([#4](https://github.com/HIKKEN17JZ/Telemetria/issues/4))
+- **Estado:** ✅ CERRADA ([#4](https://github.com/HIKKEN17JZ/Telemetria/issues/4))
 - **Asignado a:** Agus (Dev 3 - `@AgusValdebenito`)
 - **Descripción:** Diseñar la estructura de base de datos relacional para el sistema de telemetría de flota y generar los scripts de inicialización DDL/migraciones para almacenar vehículos, mediciones periódicas (sensores, velocidad, ubicación GPS, combustible) y alertas críticas generadas por eventos del sistema.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
