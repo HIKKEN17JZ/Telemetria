@@ -33,13 +33,13 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 * [x] **[Issue #5](https://github.com/HIKKEN17JZ/Telemetria/issues/5):** Protocolo de comunicación, enmarcado y validación de paquetes — **Charango** ✅
 * [x] **[Issue #6](https://github.com/HIKKEN17JZ/Telemetria/issues/6):** Conector TCP resiliente en el Agente con reconexión automática — **Ale** ✅
 * [x] **[Issue #7](https://github.com/HIKKEN17JZ/Telemetria/issues/7):** Configuración de Celery, Broker y Workers para procesamiento paralelo (CPU-Bound) — **Agus** ✅
-* [ ] **[Issue #8](https://github.com/HIKKEN17JZ/Telemetria/issues/8):** Despacho asíncrono a Celery e IPC mediante Señales UNIX en el Servidor — **Charango**
+* [x] **[Issue #8](https://github.com/HIKKEN17JZ/Telemetria/issues/8):** Despacho asíncrono a Celery e IPC mediante Señales UNIX en el Servidor — **Charango** ✅
 * [ ] **[Issue #9](https://github.com/HIKKEN17JZ/Telemetria/issues/9):** Pipeline de persistencia masiva en PostgreSQL, reportes y Diagramación PlantUML — **Agus**
 
 ---
 
 ### 🖥️ Sprint 3 — Semi-Frontend de Escritorio (Tkinter), API Gateway y Tiempo Real (Próximo)
-* [ ] **[Issue #10](https://github.com/HIKKEN17JZ/Telemetria/issues/10):** Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota — **Ale**
+* [x] **[Issue #10](https://github.com/HIKKEN17JZ/Telemetria/issues/10):** Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota — **Ale** ✅
 * [ ] **[Issue #11](https://github.com/HIKKEN17JZ/Telemetria/issues/11):** API Gateway con Gunicorn y Uvicorn (Workers y Threads) — **Charango**
 * [ ] **[Issue #12](https://github.com/HIKKEN17JZ/Telemetria/issues/12):** Integración en tiempo real del Dashboard Tkinter con Multithreading — **Ale**
 
@@ -139,7 +139,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #8] Despacho asíncrono a Celery e IPC mediante Señales UNIX en el Servidor
-- **Estado:** ⏳ ABIERTA ([#8](https://github.com/HIKKEN17JZ/Telemetria/issues/8))
+- **Estado:** ✅ CERRADA ([#8](https://github.com/HIKKEN17JZ/Telemetria/issues/8))
 - **Asignado a:** Charango (Dev 2 - `@Charango21`)
 - **Descripción:** Conectar el servidor de sockets asíncrono con el sistema de tareas Celery (enviando la telemetría recibida a la cola sin bloquear `asyncio`) e implementar mecanismos de Comunicación Entre Procesos (IPC) mediante señales UNIX estándar (`SIGHUP` y `SIGUSR1`) para control operativo del servidor en caliente.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
@@ -165,7 +165,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #10] Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota
-- **Estado:** ⏳ ABIERTA ([#10](https://github.com/HIKKEN17JZ/Telemetria/issues/10))
+- **Estado:** ✅ CERRADA ([#10](https://github.com/HIKKEN17JZ/Telemetria/issues/10))
 - **Asignado a:** Ale (Dev 1 - `@HIKKEN17JZ`)
 - **Descripción:** Desarrollar una interfaz gráfica de escritorio interactiva en Python nativo utilizando **Tkinter** para el monitoreo y gestión en tiempo real de la flota de vehículos, presentando tablas de estado, velocímetros/indicadores y visor de eventos críticos en reemplazo de una aplicación web compleja.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
