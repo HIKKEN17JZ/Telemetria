@@ -66,3 +66,4 @@ class TelemetryBuffer:
 
     def __repr__(self) -> str:
         return f"TelemetryBuffer(items={len(self._queue)}/{self._max_size})"
+

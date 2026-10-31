@@ -72,3 +72,4 @@ class ExponentialBackoff:
             f"ExponentialBackoff(attempt={self._attempt}, initial={self._initial_delay}s, "
             f"max={self._max_delay}s, last={self._last_delay:.2f}s)"
         )
+
