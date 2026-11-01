@@ -6,6 +6,12 @@ python-dotenv>=1.0.0
 celery>=5.3.0
 redis>=5.0.0
 
+# API Gateway (Issue #11): FastAPI + Gunicorn + Uvicorn
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+gunicorn>=21.0.0
+httpx2>=2.0.0
+
 # Pruebas automatizadas
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
