@@ -1,11 +1,9 @@
 """
-Interfaz gráfica de escritorio en Tkinter (Semi-Frontend) - Issues #10 y #12.
-Asignado a: Ale (Dev 1 - @HIKKEN17JZ)
-
+Interfaz gráfica de escritorio en Tkinter (Semi-Frontend).
 Monitoreo interactivo de flota en tiempo real con tablas de estado, paneles KPI,
 visor de alertas con etiquetas de color y desacoplamiento limpio de la capa de datos.
 
-Integración Multithreading (Issue #12):
+Integración Multithreading:
 - Consumo seguro de eventos de red mediante cola thread-safe (queue.Queue).
 - Polling no bloqueante en el bucle de eventos mediante root.after().
 - Indicador visual reactivo de conectividad (🟢 En Línea / 🔴 Desconectado / 🟡 Reconectando).
@@ -62,14 +60,10 @@ class FleetDashboardView:
         self._setup_styles()
         self._build_ui()
 
-        # Suscribir la vista a los eventos del modelo
         self.state.subscribe(self._on_state_change)
         self.refresh_views()
-
-        # Configurar intercepción de cierre de ventana
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        # Iniciar polling de la cola de red si está configurado
         if self.auto_poll_queue:
             self._schedule_queue_poll()
 
@@ -88,7 +82,6 @@ class FleetDashboardView:
         except Exception:
             pass
 
-        # Estilo para Treeviews
         self.style.configure(
             "Treeview",
             background="#ffffff",
@@ -104,18 +97,14 @@ class FleetDashboardView:
             font=("Segoe UI", 9, "bold")
         )
 
-        # Estilos para Tarjetas KPI
         self.style.configure("Card.TFrame", background="#ffffff", relief="groove")
         self.style.configure("CardTitle.TLabel", background="#ffffff", foreground="#6c757d", font=("Segoe UI", 9))
         self.style.configure("CardValue.TLabel", background="#ffffff", foreground="#212529", font=("Segoe UI", 16, "bold"))
         self.style.configure("CardValueCritical.TLabel", background="#ffffff", foreground="#dc3545", font=("Segoe UI", 16, "bold"))
-
-        # Estilo de barra de estado
         self.style.configure("TopBar.TFrame", background="#ffffff", relief="solid", borderwidth=1)
 
     def _build_ui(self) -> None:
         """Construye todos los contenedores y paneles de la interfaz gráfica."""
-        # Contenedor raíz con padding
         self.main_container = ttk.Frame(self.root, padding=10)
         self.main_container.pack(fill=tk.BOTH, expand=True)
 
@@ -129,7 +118,6 @@ class FleetDashboardView:
         top_bar = tk.Frame(self.main_container, bg="#ffffff", bd=1, relief="solid", padx=12, pady=8)
         top_bar.pack(fill=tk.X, pady=(0, 10))
 
-        # Sección Izquierda: Título y subtítulo
         left_frame = tk.Frame(top_bar, bg="#ffffff")
         left_frame.pack(side=tk.LEFT, fill=tk.Y)
 
@@ -151,7 +139,6 @@ class FleetDashboardView:
         )
         lbl_app_sub.pack(anchor="w")
 
-        # Sección Derecha: Indicador de conectividad reactivo
         right_frame = tk.Frame(top_bar, bg="#ffffff")
         right_frame.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -199,21 +186,15 @@ class FleetDashboardView:
         self.header_frame = ttk.Frame(self.main_container)
         self.header_frame.pack(fill=tk.X, pady=(0, 10))
 
-        # Configurar 5 columnas homogéneas
         for i in range(5):
             self.header_frame.columnconfigure(i, weight=1)
 
-        # 1. Total Vehículos
         c1, _, self.lbl_total_vehicles = self._create_kpi_card(self.header_frame, "🚗 Total Flota", "0", 0)
-        # 2. Vehículos Activos
         c2, _, self.lbl_active_vehicles = self._create_kpi_card(self.header_frame, "⚡ En Movimiento", "0", 1)
-        # 3. Velocidad Promedio
         c3, _, self.lbl_avg_speed = self._create_kpi_card(self.header_frame, "📊 Velocidad Promedio", "0.0 km/h", 2)
-        # 4. Alertas Críticas
         c4, _, self.lbl_critical_alerts = self._create_kpi_card(
             self.header_frame, "🚨 Alertas Críticas", "0", 3, is_critical=True
         )
-        # 5. Total Alertas
         c5, _, self.lbl_total_alerts = self._create_kpi_card(self.header_frame, "🔔 Total Alertas", "0", 4)
 
     def _create_kpi_card(
@@ -237,12 +218,10 @@ class FleetDashboardView:
         self.paned_window = ttk.PanedWindow(self.main_container, orient=tk.VERTICAL)
         self.paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=(0, 6))
 
-        # Panel 1: Tabla de Vehículos
         self.vehicle_frame = ttk.LabelFrame(self.paned_window, text="  🚙 Estado de la Flota en Tiempo Real  ", padding=6)
         self.paned_window.add(self.vehicle_frame, weight=3)
         self._build_vehicle_table(self.vehicle_frame)
 
-        # Panel 2: Registro de Alertas y Eventos
         self.alerts_frame = ttk.LabelFrame(self.paned_window, text="  🚨 Registro de Alertas y Eventos Críticos  ", padding=6)
         self.paned_window.add(self.alerts_frame, weight=2)
         self._build_alerts_table(self.alerts_frame)
@@ -270,12 +249,10 @@ class FleetDashboardView:
         self.vehicle_tree.column("coords", width=160, anchor="center")
         self.vehicle_tree.column("updated", width=110, anchor="center")
 
-        # Configuración de tags de color para alertas inmediatas
         self.vehicle_tree.tag_configure("critical", background="#ffebee", foreground="#c62828")
         self.vehicle_tree.tag_configure("warning", background="#fff8e1", foreground="#ef6c00")
         self.vehicle_tree.tag_configure("normal", background="#ffffff", foreground="#212529")
 
-        # Scrollbar vertical
         scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.vehicle_tree.yview)
         self.vehicle_tree.configure(yscrollcommand=scrollbar.set)
 
@@ -299,7 +276,6 @@ class FleetDashboardView:
         self.alerts_tree.column("alert_type", width=160, anchor="w")
         self.alerts_tree.column("description", width=450, anchor="w")
 
-        # Tags de severidad
         self.alerts_tree.tag_configure("CRITICAL", background="#ffebee", foreground="#b71c1c")
         self.alerts_tree.tag_configure("WARNING", background="#fff8e1", foreground="#e65100")
         self.alerts_tree.tag_configure("INFO", background="#e1f5fe", foreground="#01579b")
@@ -339,10 +315,6 @@ class FleetDashboardView:
             self.controls_frame, text="🗑️ Limpiar Alertas", command=self.state.clear_alerts
         )
         btn_clear.pack(side=tk.RIGHT, padx=4)
-
-    # ========================================================================
-    # Consumo Multithreading y Patrón Observer
-    # ========================================================================
 
     def process_queue_events(self, max_events_per_cycle: int = 50) -> int:
         """
@@ -423,7 +395,7 @@ class FleetDashboardView:
             )
             detail = f"{url} | {msg}" if msg else f"{url} | Intentando conectar..."
             self.lbl_connection_detail.config(text=detail)
-        else:  # DISCONNECTED
+        else:
             self.lbl_connection_badge.config(
                 text="● DESCONECTADO",
                 bg="#f8d7da",
@@ -510,7 +482,6 @@ class FleetDashboardView:
         if self._is_destroyed:
             return
 
-        # 1. Actualizar Tarjetas KPI
         metrics = self.state.get_fleet_metrics()
         self.lbl_total_vehicles.config(text=str(metrics.total_vehicles))
         self.lbl_active_vehicles.config(text=str(metrics.active_vehicles))
@@ -518,7 +489,6 @@ class FleetDashboardView:
         self.lbl_critical_alerts.config(text=str(metrics.critical_alerts))
         self.lbl_total_alerts.config(text=str(metrics.total_alerts))
 
-        # 2. Actualizar Tabla de Vehículos
         existing_vehicle_items = {self.vehicle_tree.item(item)["values"][0]: item for item in self.vehicle_tree.get_children()}
         for v in self.state.get_vehicles():
             tag = "critical" if v.has_critical_alert else ("warning" if v.has_warning_alert else "normal")
@@ -542,7 +512,6 @@ class FleetDashboardView:
             else:
                 self.vehicle_tree.insert("", tk.END, values=values, tags=(tag,))
 
-        # 3. Actualizar Registro de Alertas
         self.alerts_tree.delete(*self.alerts_tree.get_children())
         for a in self.state.get_alerts(limit=50):
             time_str = a.timestamp.split("T")[-1].replace("Z", "") if "T" in a.timestamp else a.timestamp
@@ -556,7 +525,6 @@ class FleetDashboardView:
             )
             self.alerts_tree.insert("", tk.END, values=values, tags=(tag,))
 
-    # Métodos de Simulación / Mocks interactivos
     def _mock_normal_telemetry(self) -> None:
         """Inyecta una medición manual para la furgoneta de reparto (VAN-003)."""
         vid = "VAN-003"

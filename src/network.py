@@ -120,14 +120,13 @@ class TelemetryClient:
 
     def send_or_buffer(self, payload: TelemetryPayload) -> NetworkResponse:
         """
-        Envío resiliente de telemetría (Issue #6).
+        Envío resiliente de telemetría.
         Si no hay conexión o falla el socket:
           - Encola el payload en el buffer local (FIFO).
           - Retorna NetworkResponse con buffered=True.
         Si la conexión se restablece:
           - Vacía secuencialmente el buffer acumulado antes de enviar la medición actual.
         """
-        # Si no estamos conectados, intentar reconectar
         if not self.is_connected:
             if not self.connect():
                 self._buffer.push(payload)
@@ -138,13 +137,11 @@ class TelemetryClient:
                     error_message=f"Servidor no disponible. Encolado en buffer local (Total: {len(self._buffer)})"
                 )
 
-        # Si estamos conectados, primero vaciar el buffer acumulado
         if not self._buffer.is_empty:
             flushed = self.flush_buffer()
             if flushed > 0:
                 logger.info(f"🔄 Retransmitidos exitosamente {flushed} paquetes acumulados desde el buffer local.")
 
-        # Si al intentar vaciar el buffer se cortó la conexión nuevamente:
         if not self.is_connected:
             self._buffer.push(payload)
             return NetworkResponse(
@@ -154,10 +151,8 @@ class TelemetryClient:
                 error_message=f"Conexión interrumpida al vaciar buffer. Encolado (Total: {len(self._buffer)})"
             )
 
-        # Enviar el payload actual
         response = self._send_raw(payload)
         if not response.success:
-            # Si falló la transmisión del paquete actual, preservarlo en el buffer
             self._buffer.push(payload)
             return NetworkResponse(
                 success=False,
@@ -181,7 +176,7 @@ class TelemetryClient:
 
             response = self._send_raw(item)
             if response.success:
-                self._buffer.pop()  # Se extrae únicamente tras confirmar recepción
+                self._buffer.pop()
                 sent_count += 1
             else:
                 logger.warning(f"Error vaciando buffer en elemento {item.timestamp}: {response.error_message}")

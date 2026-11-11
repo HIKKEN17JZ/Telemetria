@@ -132,7 +132,6 @@ class FleetDashboardState:
             temp = payload.metrics.engine_temp_c
             status = payload.status
 
-        # 1. Evaluar umbrales de alerta
         new_alerts = self._evaluate_thresholds(
             vehicle_id=vehicle_id,
             timestamp=timestamp,
@@ -144,7 +143,6 @@ class FleetDashboardState:
         has_critical = any(a.severity == AlertSeverity.CRITICAL for a in new_alerts)
         has_warning = any(a.severity == AlertSeverity.WARNING for a in new_alerts)
 
-        # 2. Actualizar o crear resumen del vehículo
         vehicle_summary = VehicleSummary(
             vehicle_id=vehicle_id,
             status=status,
@@ -160,13 +158,11 @@ class FleetDashboardState:
         )
         self._vehicles[vehicle_id] = vehicle_summary
 
-        # 3. Registrar alertas en el historial acumulado
         for alert in new_alerts:
             self._alerts.insert(0, alert)
         if len(self._alerts) > self.MAX_ALERTS_HISTORY:
             self._alerts = self._alerts[:self.MAX_ALERTS_HISTORY]
 
-        # 4. Notificar a observadores de la interfaz
         self._notify("telemetry_updated", vehicle_summary)
         if new_alerts:
             self._notify("alerts_triggered", new_alerts)
@@ -184,7 +180,6 @@ class FleetDashboardState:
         """Evalúa las reglas de negocio y umbrales operacionales."""
         alerts: List[AlertItem] = []
 
-        # Regla 1: Exceso de velocidad (> 120 km/h)
         if speed > self.speed_limit_kmh:
             alerts.append(
                 AlertItem(
@@ -198,7 +193,6 @@ class FleetDashboardState:
                 )
             )
 
-        # Regla 2: Recalentamiento de motor (> 100 °C)
         if temp > self.temp_critical_c:
             alerts.append(
                 AlertItem(
@@ -224,7 +218,6 @@ class FleetDashboardState:
                 )
             )
 
-        # Regla 3: Nivel bajo de combustible (< 15%)
         if fuel < self.fuel_warning_pct:
             alerts.append(
                 AlertItem(
@@ -282,7 +275,6 @@ class FleetDashboardState:
         if len(self._alerts) > self.MAX_ALERTS_HISTORY:
             self._alerts = self._alerts[:self.MAX_ALERTS_HISTORY]
 
-        # Actualizar banderas de alerta en el vehículo si existe
         if alert.vehicle_id in self._vehicles:
             v = self._vehicles[alert.vehicle_id]
             if alert.severity == AlertSeverity.CRITICAL:

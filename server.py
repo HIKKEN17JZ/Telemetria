@@ -1,13 +1,12 @@
 """
-Servidor Asíncrono Concurrente de Telemetría (Issue #2, Issue #5 e Issue #8).
-Asignado a: Charango (Dev 2 - @Charango21)
+Servidor Asíncrono Concurrente de Telemetría.
 
 Implementa:
 - Servidor TCP concurrente de alto rendimiento basado en asyncio (I/O no bloqueante).
 - Manejo estricto de conexiones simultáneas mediante StreamReader y StreamWriter.
 - Protocolo delimitado por fin de línea ('\\n') con validación robusta y acuses de recibo ACK/NACK.
 - Registro en memoria de clientes conectados activamente.
-- Despacho asíncrono no bloqueante a tareas distribuidas de Celery (Issue #8).
+- Despacho asíncrono no bloqueante a tareas distribuidas de Celery.
 - Mecanismos de Comunicación Entre Procesos (IPC) mediante señales UNIX:
     * SIGHUP: Recarga dinámica de configuraciones en caliente (hot-reload).
     * SIGUSR1: Volcado de métricas operativas y estadísticas en tiempo real.
@@ -80,14 +79,10 @@ class ServerMetrics:
         }
 
 
-# Instancias globales del servidor
 server_config = ServerConfig.load_from_env()
 server_metrics = ServerMetrics()
 
-# Registro en memoria de sesiones activas: client_id -> (peername, vehicle_id)
 active_clients: Dict[int, Tuple[str, str]] = {}
-
-# Suscriptores en tiempo real del Dashboard (modo socket directo)
 dashboard_subscribers: Set[asyncio.StreamWriter] = set()
 
 
@@ -103,7 +98,6 @@ async def dispatch_telemetry_task(frame: TelemetryFrame) -> Optional[str]:
     loop = asyncio.get_running_loop()
 
     try:
-        # loop.run_in_executor para garantizar que la llamada sincrónica al broker no bloquee asyncio
         async_result = await loop.run_in_executor(None, process_telemetry.delay, frame.to_payload().to_dict())
         task_id = async_result.id if async_result else None
         logger.debug(f"Telemetry dispatched to Celery worker (task_id={task_id})")
@@ -115,7 +109,7 @@ async def dispatch_telemetry_task(frame: TelemetryFrame) -> Optional[str]:
 
 async def forward_to_gateway(frame: TelemetryFrame, gateway_url: Optional[str] = None) -> None:
     """
-    Reenvía asíncronamente la telemetría al API Gateway (Issue #11 / #12).
+    Reenvía asíncronamente la telemetría al API Gateway.
     Permite que el Dashboard Tkinter reciba los datos en tiempo real vía SSE.
     """
     target_url = gateway_url or os.getenv("GATEWAY_URL", "http://127.0.0.1:8000")
@@ -227,7 +221,6 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if not message_str:
                 continue
 
-            # Detectar registro de Dashboard como suscriptor de telemetría en vivo
             if "dashboard" in message_str.lower() or "subscribe" in message_str.lower():
                 dashboard_subscribers.add(writer)
                 active_clients[client_id] = (str(peername), "DASHBOARD_MONITOR")
@@ -239,7 +232,6 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             server_metrics.record_message_received()
                 
             try:
-                # Validar paquete mediante la capa de aplicación de protocolo (Issue #5)
                 frame = ProtocolValidator.validate_raw(message_str)
                 active_clients[client_id] = (str(peername), frame.vehicle_id)
                 logger.info(
@@ -248,14 +240,11 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     f"fuel={frame.metrics.fuel_level_pct}%, temp={frame.metrics.engine_temp_c}°C"
                 )
 
-                # Despacho no bloqueante a Celery (Issue #8)
                 if server_config.enable_celery_dispatch:
                     asyncio.create_task(dispatch_telemetry_task(frame))
 
-                # Reenvío no bloqueante al API Gateway para el Dashboard en tiempo real (Issue #11 / #12)
                 asyncio.create_task(forward_to_gateway(frame))
 
-                # Difundir a todos los dashboards conectados directamente por socket
                 for sub_writer in list(dashboard_subscribers):
                     try:
                         sub_writer.write(message_str.encode("utf-8") + b"\n")

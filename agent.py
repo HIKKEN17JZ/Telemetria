@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Agente Vehicular CLI - Transmisor de Telemetría Resiliente (Issue #3 e Issue #6)
-Asignado a: Ale (Dev 1 - @HIKKEN17JZ)
+Agente Vehicular CLI - Transmisor de Telemetría Resiliente.
 
 Punto de entrada principal para la ejecución del agente vehicular en terminal.
 Combina parseo de argumentos CLI, simulación de dinámicas vehiculares,
@@ -56,7 +55,6 @@ class AgentApp:
             start_lon=init_lon
         )
 
-        # Buffer offline acotado y estrategia de retroceso exponencial con jitter
         buffer = TelemetryBuffer(max_size=config.buffer_size)
         backoff = ExponentialBackoff(
             initial_delay=1.0,
@@ -89,13 +87,11 @@ class AgentApp:
         )
         self.logger.info("=" * 65)
 
-        # Intentar conexión inicial
         if not self.client.connect():
             self.logger.warning("⚠️ Servidor no disponible al iniciar. Se acumulará telemetría en buffer local.")
 
         while self.running:
             try:
-                # 1. Generar métricas de telemetría del paso actual
                 payload = self.simulator.next_telemetry()
                 metrics = payload.metrics
                 coords = payload.location
@@ -107,7 +103,6 @@ class AgentApp:
                     f"GPS: ({coords.lat:.4f}, {coords.lon:.4f})"
                 )
 
-                # 2. Transmisión resiliente con soporte de buffer offline
                 response = self.client.send_or_buffer(payload)
                 if response.success:
                     ack_status = response.data.get("status") if response.data else "OK"
@@ -120,14 +115,12 @@ class AgentApp:
                 else:
                     self.logger.warning(f"   ⚠️ Falló transmisión: {response.error_message}")
 
-                # 3. Esperar el intervalo indicado
                 time.sleep(self.config.interval)
 
             except Exception as e:
                 self.logger.error(f"Error inesperado en el ciclo del agente: {e}")
                 time.sleep(self.config.interval)
 
-        # Graceful shutdown
         pending = len(self.client.buffer)
         if pending > 0:
             self.logger.info(f"📦 El agente se detuvo con {pending} mediciones pendientes en búfer local.")

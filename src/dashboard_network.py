@@ -1,6 +1,5 @@
 """
-Capa de Red Asíncrona con Multithreading para el Dashboard de Tkinter (Issue #12).
-Asignado a: Ale (Dev 1 - @HIKKEN17JZ)
+Capa de Red Asíncrona con Multithreading para el Dashboard de Tkinter.
 
 Implementa:
 - Hilo secundario independiente (daemon thread) dedicado al consumo continuo de datos.
@@ -34,10 +33,6 @@ logger = logging.getLogger("DashboardNetwork")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-
-# ============================================================================
-# Enums y Estructuras de Datos Thread-Safe
-# ============================================================================
 
 class ConnectionState(str, Enum):
     """Estados del ciclo de vida de la conexión del Dashboard con el backend."""
@@ -75,10 +70,6 @@ class NetworkReceiverConfig:
     stream_mode: str = "auto"  # "auto", "stream", "poll"
 
 
-# ============================================================================
-# Parser de Server-Sent Events (SSE)
-# ============================================================================
-
 class SSEParser:
     """
     Parser con búfer de memoria para Server-Sent Events (SSE).
@@ -93,7 +84,6 @@ class SSEParser:
         self._buffer += chunk
         events: List[Dict[str, Any]] = []
 
-        # Los eventos SSE se delimitan por dobles saltos de línea (\n\n o \r\n\r\n)
         while "\n\n" in self._buffer:
             raw_event, self._buffer = self._buffer.split("\n\n", 1)
             parsed = self._parse_event_block(raw_event)
@@ -118,7 +108,6 @@ class SSEParser:
             if not line:
                 continue
             if line.startswith(":"):
-                # Comentario SSE (comúnmente usado para keepalive ping)
                 return {"event": line[1:].strip() or "keepalive", "data": {}}
             if line.startswith("event:"):
                 event_name = line[6:].strip()
@@ -139,10 +128,6 @@ class SSEParser:
             "data": parsed_data
         }
 
-
-# ============================================================================
-# Receptor de Red Multithreading (Daemon Thread)
-# ============================================================================
 
 class DashboardNetworkReceiver(threading.Thread):
     """
@@ -230,10 +215,6 @@ class DashboardNetworkReceiver(threading.Thread):
         """Encola una alerta para su despliegue visual en la GUI."""
         self.event_queue.put(NetworkEvent(event_type=EventType.ALERT, data=alert_data))
 
-    # ========================================================================
-    # Consultas REST HTTP (urllib estándar)
-    # ========================================================================
-
     def _http_get_json(self, endpoint: str) -> Any:
         url = urllib.parse.urljoin(self.config.gateway_url, endpoint)
         req = urllib.request.Request(
@@ -274,7 +255,6 @@ class DashboardNetworkReceiver(threading.Thread):
         for v in vehicles:
             latest = v.get("latest_telemetry")
             if latest:
-                # Si el backend retorna latitud/longitud plana, adaptarla
                 loc = {
                     "lat": latest.get("lat") or latest.get("latitude") or 0.0,
                     "lon": latest.get("lon") or latest.get("longitude") or 0.0
@@ -300,10 +280,6 @@ class DashboardNetworkReceiver(threading.Thread):
 
         return len(vehicles) > 0 or len(alerts) > 0
 
-    # ========================================================================
-    # Streaming SSE y Bucle Principal
-    # ========================================================================
-
     def _stream_sse(self) -> None:
         """Abre un canal continuo Server-Sent Events hacia /api/stream."""
         stream_url = urllib.parse.urljoin(self.config.gateway_url, "/api/stream")
@@ -320,7 +296,6 @@ class DashboardNetworkReceiver(threading.Thread):
             self._current_response = resp
             self.set_state(ConnectionState.CONNECTED, message="Conectado vía SSE en tiempo real.")
 
-            # Realizar sincronización de estado inicial de vehículos
             try:
                 self.sync_initial_state()
             except Exception as e:
@@ -344,22 +319,19 @@ class DashboardNetworkReceiver(threading.Thread):
         if event_name == "connect":
             logger.info(f"Handshake SSE confirmado por el Gateway: {data}")
         elif event_name == "keepalive" or sse_event.get("event") == "keepalive":
-            pass  # Heartbeat keepalive
+            pass
         elif event_name == "telemetry" or data.get("type") == "telemetry":
             self.dispatch_telemetry(data)
         elif event_name == "alert" or data.get("type") == "alert":
             self.dispatch_alert(data)
-        else:
-            # Si el payload contiene vehicle_id y metrics, tratar como telemetría
-            if "vehicle_id" in data and "metrics" in data:
-                self.dispatch_telemetry(data)
+        elif "vehicle_id" in data and "metrics" in data:
+            self.dispatch_telemetry(data)
 
     def _poll_fallback(self) -> None:
         """Modo de sondeo continuo (fallback cuando SSE no está disponible)."""
         self.set_state(ConnectionState.CONNECTED, message="Conectado vía Sondeo REST (Polling).")
         while not self.is_stopped():
             self.sync_initial_state()
-            # Dormir a intervalos cortos para chequear stop_event
             for _ in range(int(self.config.poll_interval * 10)):
                 if self.is_stopped():
                     return
@@ -417,7 +389,6 @@ class DashboardNetworkReceiver(threading.Thread):
                 )
 
                 connected = False
-                # 1. Probar primero con el API Gateway (SSE / REST)
                 if self.config.stream_mode in ("stream", "auto"):
                     try:
                         self._stream_sse()
@@ -425,7 +396,6 @@ class DashboardNetworkReceiver(threading.Thread):
                     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as sse_err:
                         logger.debug(f"API Gateway no disponible ({sse_err}).")
 
-                # 2. Si el API Gateway no está levantado (sin Docker), conectar directo al Servidor TCP
                 if not connected and not self.is_stopped() and self.config.stream_mode in ("auto", "poll"):
                     try:
                         self._stream_tcp_server(host="127.0.0.1", port=5000)
@@ -436,7 +406,6 @@ class DashboardNetworkReceiver(threading.Thread):
                 elif not connected and not self.is_stopped():
                     self._poll_fallback()
 
-                # Si el bucle salió limpiamente por desconexión del servidor
                 attempt = 0
                 backoff = self.config.reconnect_backoff_base
 
@@ -451,7 +420,6 @@ class DashboardNetworkReceiver(threading.Thread):
                 err_msg = f"Falla de conexión ({exc}). Reintentando en {wait_time:.1f}s..."
                 self.set_state(ConnectionState.RECONNECTING, message=err_msg)
 
-                # Esperar con chequeo periódico de detención
                 step = 0.1
                 waited = 0.0
                 while waited < wait_time and not self.is_stopped():

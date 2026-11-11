@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Dashboard de Monitoreo de Flota en Escritorio (Tkinter) - Issues #10 y #12.
-Asignado a: Ale (Dev 1 - @HIKKEN17JZ)
+Dashboard de Monitoreo de Flota en Escritorio (Tkinter).
 
 Punto de entrada ejecutable para la interfaz gráfica de escritorio.
 Integra una arquitectura Multithreading (threading.Thread + queue.Queue)
@@ -81,13 +80,11 @@ def main() -> int:
     print(f" [*] Umbral Temp:     {args.temp_limit} °C")
     print("=" * 65)
 
-    # 1. Instanciar estado del dominio
     state = FleetDashboardState(
         speed_limit_kmh=args.speed_limit,
         temp_critical_c=args.temp_limit
     )
 
-    # 2. Configurar cola y receptor en segundo plano (Multithreading)
     event_queue = queue.Queue()
     receiver = None
 
@@ -100,7 +97,6 @@ def main() -> int:
         receiver = DashboardNetworkReceiver(config=config, event_queue=event_queue)
         receiver.start()
 
-    # 3. Iniciar GUI de Tkinter en el hilo principal
     root = tk.Tk()
     app = FleetDashboardView(
         root=root,
