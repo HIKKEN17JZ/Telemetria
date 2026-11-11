@@ -86,35 +86,52 @@ Proyecto integrador para el examen final de **Computación 2**. Consiste en un s
 
 ```text
 .
-├── agent.py                     # Punto de entrada del Agente Vehicular CLI
-├── server.py                    # Punto de entrada del Servidor TCP Asíncrono
+├── agent.py                     # Punto de entrada del Agente Vehicular CLI (Issue #3 & #6)
+├── server.py                    # Punto de entrada del Servidor TCP Asíncrono (Issue #2, #5 & #8)
+├── gateway.py                   # API Gateway con Gunicorn/Uvicorn (Issue #11)
+├── dashboard.py                 # Dashboard de Monitoreo de Escritorio en Tkinter (Issue #10 & #12)
 ├── boot.ps1                     # Lanzador rápido interactivo para Windows PowerShell
 ├── boot.sh                      # Lanzador rápido interactivo para Bash / Linux
-├── docker-compose.yml           # Orquestación de infraestructura (Postgres + Redis)
+├── docker-compose.yml           # Orquestación de infraestructura (Postgres + Redis + Celery)
 ├── init_db.sql                  # Esquema DDL inicial e índices para PostgreSQL
 ├── requirements.txt             # Dependencias del proyecto Python
 ├── .env.example                 # Plantilla de variables de entorno
-├── docs/                        # Documentación técnica
-│   └── issues_backlog.md        # Planificación ágil y especificación de los 12 issues
+├── docs/                        # Documentación técnica y diagramas PlantUML
+│   ├── issues_backlog.md        # Planificación ágil y especificación de los 12 issues
+│   ├── architecture.puml        # Diagrama de arquitectura general de componentes
+│   └── data_flow.puml           # Diagrama de flujo de datos y secuencia extremo a extremo
 ├── src/                         # Código fuente modular (Clean Architecture)
 │   ├── backoff.py               # Algoritmo de retroceso exponencial con jitter
 │   ├── buffer.py                # Búfer circular FIFO para tolerancia a caídas
+│   ├── celery_app.py            # Instancia de Celery con broker Redis y serialización JSON
 │   ├── cli.py                   # Parser y validación estricta con argparse
+│   ├── dashboard_gui.py         # Interfaz gráfica de escritorio en Tkinter / ttk (MVP)
+│   ├── dashboard_model.py       # Modelo de estado del dashboard y evaluador de reglas
+│   ├── dashboard_network.py     # Hilo secundario (daemon thread) con queue.Queue y SSE/REST
 │   ├── database.py              # Pool de conexiones y capa de datos PostgreSQL
+│   ├── gateway.py               # Endpoints REST, SSE y WebSockets (FastAPI + Broadcaster)
 │   ├── models.py                # Modelos de dominio fuertemente tipados
 │   ├── network.py               # Cliente TCP socket resiliente
 │   ├── protocol.py              # Enmarcado, validación de esquemas y ACK/NACK
-│   └── simulator.py             # Generador sintético de cinemática vehicular
+│   ├── simulator.py             # Generador sintético de cinemática vehicular
+│   └── tasks.py                 # Tareas Celery paralelas (CPU-bound) y persistencia batch
 └── tests/                       # Suite de pruebas automatizadas (TDD)
     ├── test_agent.py            # Tests de inicialización y ciclo de vida del agente
     ├── test_backoff.py          # Tests del cálculo de retardos y jitter
     ├── test_buffer.py           # Tests del búfer FIFO y descarte acotado
     ├── test_cli.py              # Tests del parser de argumentos y validaciones
+    ├── test_dashboard_gui.py    # Tests unitarios de componentes visuales Tkinter
+    ├── test_dashboard_model.py  # Tests unitarios de lógica de negocio y umbrales de alerta
+    ├── test_dashboard_network.py# Tests unitarios de red multithreading, SSE parser y backoff
+    ├── test_dashboard_gui_multithreading.py # Tests de consumo de cola y seguridad de hilos
+    ├── test_dashboard_e2e_multithreading.py # Test e2e mock gateway + receiver + Tkinter
     ├── test_database.py         # Tests de persistencia relacional
+    ├── test_gateway.py          # Tests del API Gateway y diagnóstico de concurrencia
     ├── test_integration_e2e.py  # Test de integración extremo a extremo Server-Agent
     ├── test_network.py          # Tests de conectividad TCP con socket mock
     ├── test_protocol.py         # Tests de validación de tramas y enmarcado
     ├── test_resilient_network.py# Tests de tolerancia a caídas y vaciado de búfer
+    ├── test_server_ipc_celery.py# Tests de señales UNIX (SIGHUP/SIGUSR1) y despacho Celery
     └── test_simulator.py        # Tests de coherencia física y modelos
 ```
 
@@ -189,8 +206,8 @@ python agent.py --vehicle-id CAMION-002 --interval 1.0
 El proyecto se desarrolla bajo metodología **Test-Driven Development (TDD)** con una cobertura integral de pruebas unitarias y de integración de red:
 
 ```bash
-# Ejecutar todas las pruebas unitarias y de integración del agente:
-python -m unittest tests/test_agent.py tests/test_cli.py tests/test_simulator.py tests/test_network.py tests/test_buffer.py tests/test_backoff.py tests/test_resilient_network.py tests/test_integration_e2e.py
+# Ejecutar todas las pruebas unitarias y de integración del proyecto (54 tests passing):
+python -m unittest tests/test_dashboard_model.py tests/test_dashboard_gui.py tests/test_dashboard_network.py tests/test_dashboard_gui_multithreading.py tests/test_dashboard_e2e_multithreading.py tests/test_agent.py tests/test_cli.py tests/test_simulator.py tests/test_network.py tests/test_buffer.py tests/test_backoff.py tests/test_resilient_network.py tests/test_integration_e2e.py
 
 # O mediante los lanzadores automatizados:
 .\boot.ps1 test

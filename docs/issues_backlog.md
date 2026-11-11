@@ -38,10 +38,10 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 
 ---
 
-### 🖥️ Sprint 3 — Semi-Frontend de Escritorio (Tkinter), API Gateway y Tiempo Real (En Curso)
+### 🖥️ Sprint 3 — Semi-Frontend de Escritorio (Tkinter), API Gateway y Tiempo Real (Finalizado)
 * [x] **[Issue #10](https://github.com/HIKKEN17JZ/Telemetria/issues/10):** Semi-Frontend de Escritorio con Tkinter y Dashboard de Monitoreo de Flota — **Ale** ✅
-* [ ] **[Issue #11](https://github.com/HIKKEN17JZ/Telemetria/issues/11):** API Gateway con Gunicorn y Uvicorn (Workers y Threads) — **Charango**
-* [ ] **[Issue #12](https://github.com/HIKKEN17JZ/Telemetria/issues/12):** Integración en tiempo real del Dashboard Tkinter con Multithreading — **Ale**
+* [x] **[Issue #11](https://github.com/HIKKEN17JZ/Telemetria/issues/11):** API Gateway con Gunicorn y Uvicorn (Workers y Threads) — **Charango** ✅
+* [x] **[Issue #12](https://github.com/HIKKEN17JZ/Telemetria/issues/12):** Integración en tiempo real del Dashboard Tkinter con Multithreading — **Ale** ✅
 
 ---
 
@@ -178,7 +178,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #11] API Gateway con Gunicorn y Uvicorn (Workers y Threads)
-- **Estado:** ⏳ ABIERTA ([#11](https://github.com/HIKKEN17JZ/Telemetria/issues/11))
+- **Estado:** ✅ CERRADA ([#11](https://github.com/HIKKEN17JZ/Telemetria/issues/11))
 - **Asignado a:** Charango (Dev 2 - `@Charango21`)
 - **Descripción:** Implementar una capa de exposición de datos (API Gateway con FastAPI o Starlette) servida mediante **Gunicorn** orquestando workers de **Uvicorn** con configuración explícita de **workers (procesos)** e **hilos (threads)**, demostrando ante la cátedra la combinación de paralelismo por procesos y concurrencia por hilos y asincronismo para alimentar el dashboard de Tkinter.
 - **Cosas a tener en cuenta (Criterios de Aceptación):**
@@ -191,7 +191,7 @@ Este documento establece la planificación ágil y la descomposición del trabaj
 ---
 
 ### [Issue #12] Integración en tiempo real del Dashboard Tkinter con Multithreading
-- **Estado:** ⏳ ABIERTA ([#12](https://github.com/HIKKEN17JZ/Telemetria/issues/12))
+- **Estado:** ✅ IMPLEMENTADA (Lista para Cierre - [#12](https://github.com/HIKKEN17JZ/Telemetria/issues/12))
 - **Asignado a:** Ale (Dev 1 - `@HIKKEN17JZ`)
 - **Descripción:** Conectar el dashboard de escritorio en **Tkinter** con el API Gateway / Servidor, implementando una arquitectura de **Multithreading** (`threading.Thread` + `queue.Queue`) para consumir la telemetría en tiempo real sin congelar ni degradar el bucle principal de la interfaz gráfica (`mainloop()`).
 - **Cosas a tener en cuenta (Criterios de Aceptación):**

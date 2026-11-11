@@ -21,7 +21,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass, asdict
-from typing import Dict, Tuple, Optional, Any
+from typing import Dict, Tuple, Optional, Any, Set
 
 from src.protocol import ProtocolValidator, ProtocolResponse, ProtocolError, TelemetryFrame
 try:
@@ -87,6 +87,9 @@ server_metrics = ServerMetrics()
 # Registro en memoria de sesiones activas: client_id -> (peername, vehicle_id)
 active_clients: Dict[int, Tuple[str, str]] = {}
 
+# Suscriptores en tiempo real del Dashboard (modo socket directo)
+dashboard_subscribers: Set[asyncio.StreamWriter] = set()
+
 
 async def dispatch_telemetry_task(frame: TelemetryFrame) -> Optional[str]:
     """
@@ -108,6 +111,35 @@ async def dispatch_telemetry_task(frame: TelemetryFrame) -> Optional[str]:
     except Exception as exc:
         logger.error(f"Failed to dispatch telemetry to Celery: {exc}")
         return None
+
+
+async def forward_to_gateway(frame: TelemetryFrame, gateway_url: Optional[str] = None) -> None:
+    """
+    Reenvía asíncronamente la telemetría al API Gateway (Issue #11 / #12).
+    Permite que el Dashboard Tkinter reciba los datos en tiempo real vía SSE.
+    """
+    target_url = gateway_url or os.getenv("GATEWAY_URL", "http://127.0.0.1:8000")
+    loop = asyncio.get_running_loop()
+
+    def _post() -> None:
+        try:
+            import urllib.request
+            import json
+            payload_data = json.dumps(frame.to_payload().to_dict()).encode("utf-8")
+            req = urllib.request.Request(
+                f"{target_url}/api/telemetry/publish",
+                data=payload_data,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=0.8):
+                pass
+        except Exception:
+            pass
+
+    try:
+        await loop.run_in_executor(None, _post)
+    except Exception:
+        pass
 
 
 def handle_sighup(config: Optional[ServerConfig] = None) -> None:
@@ -195,6 +227,15 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if not message_str:
                 continue
 
+            # Detectar registro de Dashboard como suscriptor de telemetría en vivo
+            if "dashboard" in message_str.lower() or "subscribe" in message_str.lower():
+                dashboard_subscribers.add(writer)
+                active_clients[client_id] = (str(peername), "DASHBOARD_MONITOR")
+                logger.info(f"Dashboard monitor registrado desde {peername} (Total monitores: {len(dashboard_subscribers)})")
+                writer.write(b'{"status": "SUBSCRIBED", "role": "dashboard"}\n')
+                await writer.drain()
+                continue
+
             server_metrics.record_message_received()
                 
             try:
@@ -210,6 +251,17 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 # Despacho no bloqueante a Celery (Issue #8)
                 if server_config.enable_celery_dispatch:
                     asyncio.create_task(dispatch_telemetry_task(frame))
+
+                # Reenvío no bloqueante al API Gateway para el Dashboard en tiempo real (Issue #11 / #12)
+                asyncio.create_task(forward_to_gateway(frame))
+
+                # Difundir a todos los dashboards conectados directamente por socket
+                for sub_writer in list(dashboard_subscribers):
+                    try:
+                        sub_writer.write(message_str.encode("utf-8") + b"\n")
+                        asyncio.create_task(sub_writer.drain())
+                    except Exception:
+                        dashboard_subscribers.discard(sub_writer)
 
                 server_metrics.record_message_processed()
                 response = ProtocolResponse.ack(frame.vehicle_id)
@@ -232,6 +284,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
     except Exception as e:
         logger.error(f"Unexpected error with {peername}: {e}")
     finally:
+        dashboard_subscribers.discard(writer)
         active_clients.pop(client_id, None)
         logger.info(f"Closing connection for {peername} (Active: {len(active_clients)})")
         writer.close()

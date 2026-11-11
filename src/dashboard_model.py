@@ -276,6 +276,22 @@ class FleetDashboardState:
         """Retorna las alertas más recientes acotadas por el límite."""
         return self._alerts[:limit]
 
+    def add_alert(self, alert: AlertItem) -> None:
+        """Registra una alerta externa (recibida desde Celery o API Gateway) en el estado."""
+        self._alerts.insert(0, alert)
+        if len(self._alerts) > self.MAX_ALERTS_HISTORY:
+            self._alerts = self._alerts[:self.MAX_ALERTS_HISTORY]
+
+        # Actualizar banderas de alerta en el vehículo si existe
+        if alert.vehicle_id in self._vehicles:
+            v = self._vehicles[alert.vehicle_id]
+            if alert.severity == AlertSeverity.CRITICAL:
+                v.has_critical_alert = True
+            elif alert.severity == AlertSeverity.WARNING:
+                v.has_warning_alert = True
+
+        self._notify("alert_added", alert)
+
     def clear_alerts(self) -> None:
         """Limpia el historial de alertas y resetea flags en vehículos."""
         self._alerts.clear()
