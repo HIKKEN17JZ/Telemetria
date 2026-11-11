@@ -27,7 +27,6 @@ from typing import Any, Dict, List, Optional
 import queue
 
 from src.models import TelemetryPayload, Location, VehicleMetrics
-TelemetryMetrics = VehicleMetrics
 
 logger = logging.getLogger("DashboardNetwork")
 if not logger.handlers:
@@ -198,7 +197,7 @@ class DashboardNetworkReceiver(threading.Thread):
                         lat=float(loc.get("lat", loc.get("latitude", 0.0))),
                         lon=float(loc.get("lon", loc.get("longitude", 0.0)))
                     ),
-                    metrics=TelemetryMetrics(
+                    metrics=VehicleMetrics(
                         speed_kmh=float(met.get("speed_kmh", met.get("speed", 0.0))),
                         rpm=int(met.get("rpm", 0)),
                         fuel_level_pct=float(met.get("fuel_level_pct", met.get("fuel_level", 0.0))),
@@ -318,7 +317,7 @@ class DashboardNetworkReceiver(threading.Thread):
 
         if event_name == "connect":
             logger.info(f"Handshake SSE confirmado por el Gateway: {data}")
-        elif event_name == "keepalive" or sse_event.get("event") == "keepalive":
+        elif event_name == "keepalive":
             pass
         elif event_name == "telemetry" or data.get("type") == "telemetry":
             self.dispatch_telemetry(data)

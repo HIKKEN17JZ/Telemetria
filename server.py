@@ -84,6 +84,14 @@ server_metrics = ServerMetrics()
 
 active_clients: Dict[int, Tuple[str, str]] = {}
 dashboard_subscribers: Set[asyncio.StreamWriter] = set()
+background_tasks: Set[asyncio.Task] = set()
+
+
+def track_task(task: asyncio.Task) -> asyncio.Task:
+    """Registra y gestiona el ciclo de vida de tareas en segundo plano sin fugas."""
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
+    return task
 
 
 async def dispatch_telemetry_task(frame: TelemetryFrame) -> Optional[str]:
@@ -131,7 +139,10 @@ async def forward_to_gateway(frame: TelemetryFrame, gateway_url: Optional[str] =
             pass
 
     try:
-        await loop.run_in_executor(None, _post)
+        if not loop.is_closed():
+            await loop.run_in_executor(None, _post)
+    except (RuntimeError, asyncio.CancelledError):
+        pass
     except Exception:
         pass
 
@@ -241,14 +252,13 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 )
 
                 if server_config.enable_celery_dispatch:
-                    asyncio.create_task(dispatch_telemetry_task(frame))
+                    track_task(asyncio.create_task(dispatch_telemetry_task(frame)))
 
-                asyncio.create_task(forward_to_gateway(frame))
+                track_task(asyncio.create_task(forward_to_gateway(frame)))
 
                 for sub_writer in list(dashboard_subscribers):
                     try:
                         sub_writer.write(message_str.encode("utf-8") + b"\n")
-                        asyncio.create_task(sub_writer.drain())
                     except Exception:
                         dashboard_subscribers.discard(sub_writer)
 
@@ -276,8 +286,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         dashboard_subscribers.discard(writer)
         active_clients.pop(client_id, None)
         logger.info(f"Closing connection for {peername} (Active: {len(active_clients)})")
-        writer.close()
         try:
+            writer.close()
             await writer.wait_closed()
         except Exception:
             pass
@@ -293,7 +303,11 @@ async def run_server(host: str, port: int) -> None:
     logger.info(f"Telemetry server serving on {addr}")
     
     async with server:
-        await server.serve_forever()
+        try:
+            await server.serve_forever()
+        finally:
+            for t in list(background_tasks):
+                t.cancel()
 
 
 def main() -> None:

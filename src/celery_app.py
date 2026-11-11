@@ -1,6 +1,5 @@
 """
-Configuración e inicialización de Celery Application (Issue #7).
-Asignado a: Agus (Dev 3)
+Configuración e inicialización de Celery Application.
 
 Define la aplicación distribuida Celery utilizando Redis como Message Broker
 y Result Backend, con serialización estricta en JSON y control de concurrencia.

@@ -339,10 +339,7 @@ class FleetDashboardView:
             if type_str == "STATUS":
                 self._handle_status_event(data)
             elif type_str == "TELEMETRY":
-                if isinstance(data, TelemetryPayload):
-                    self.state.update_telemetry(data)
-                    state_updated = True
-                elif isinstance(data, dict):
+                if isinstance(data, (TelemetryPayload, dict)):
                     try:
                         self.state.update_telemetry(data)
                         state_updated = True
@@ -351,8 +348,6 @@ class FleetDashboardView:
             elif type_str == "ALERT":
                 self._handle_alert_event(data)
                 state_updated = True
-            elif type_str == "STATS":
-                pass
 
         if state_updated:
             self.refresh_views()
