@@ -10,7 +10,7 @@ transmisión TCP resiliente con buffer offline FIFO y reconexión exponencial co
 import logging
 import signal
 import sys
-import time
+import threading
 from typing import Optional
 
 from src.cli import parse_arguments, validate_config, AgentConfig
@@ -47,6 +47,7 @@ class AgentApp:
         self.config = config
         self.logger = logger
         self.running = False
+        self._stop_event = threading.Event()
 
         init_lat, init_lon = calculate_initial_coordinates(config.vehicle_id)
         self.simulator = VehicleSimulator(
@@ -72,12 +73,18 @@ class AgentApp:
         )
 
     def stop(self) -> None:
-        """Detiene de forma limpia el bucle de ejecución."""
+        """Detiene de forma limpia el bucle de ejecución e interrumpe cualquier espera."""
         self.running = False
+        self._stop_event.set()
+
+    def _wait_interval(self, seconds: float) -> bool:
+        """Espera interrumpible compatible con apagado ordenado ante señales."""
+        return self._stop_event.wait(timeout=max(0.0, seconds))
 
     def run(self) -> None:
         """Ejecuta el bucle continuo de muestreo y transmisión periódica resiliente."""
         self.running = True
+        self._stop_event.clear()
         self.logger.info("=" * 65)
         self.logger.info(f"🚗 Iniciando Agente Vehicular Resiliente: {self.config.vehicle_id}")
         self.logger.info(f"🎯 Servidor Destino: {self.config.server_host}:{self.config.server_port}")
@@ -104,22 +111,25 @@ class AgentApp:
                 )
 
                 response = self.client.send_or_buffer(payload)
+                wait_seconds = self.config.interval
                 if response.success:
                     ack_status = response.data.get("status") if response.data else "OK"
                     self.logger.info(f"   📥 ACK recibido del servidor: {ack_status}")
                 elif response.buffered:
+                    backoff_delay = self.client.backoff.last_delay
+                    wait_seconds = max(self.config.interval, backoff_delay)
                     self.logger.warning(
                         f"   ⚠️ Modo Offline: medición encolada en buffer local (Total en cola: {response.queue_size}). "
-                        f"Próximo reintento calculado: {self.client.backoff.last_delay:.1f}s"
+                        f"Próximo reintento en {wait_seconds:.1f}s"
                     )
                 else:
                     self.logger.warning(f"   ⚠️ Falló transmisión: {response.error_message}")
 
-                time.sleep(self.config.interval)
+                self._wait_interval(wait_seconds)
 
             except Exception as e:
                 self.logger.error(f"Error inesperado en el ciclo del agente: {e}")
-                time.sleep(self.config.interval)
+                self._wait_interval(self.config.interval)
 
         pending = len(self.client.buffer)
         if pending > 0:
@@ -146,8 +156,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     def handle_signal(sig, frame):
         logger.info("\n🛑 Señal recibida (Ctrl+C / SIGINT). Apagando agente ordenadamente...")
         app.stop()
-        app.client.disconnect()
-        sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)

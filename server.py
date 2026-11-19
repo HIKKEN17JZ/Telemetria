@@ -14,11 +14,13 @@ Implementa:
 
 import asyncio
 import argparse
+import json
 import logging
 import os
 import signal
 import sys
 import time
+import urllib.request
 from dataclasses import dataclass, asdict
 from typing import Dict, Tuple, Optional, Any, Set
 
@@ -125,8 +127,6 @@ async def forward_to_gateway(frame: TelemetryFrame, gateway_url: Optional[str] =
 
     def _post() -> None:
         try:
-            import urllib.request
-            import json
             payload_data = json.dumps(frame.to_payload().to_dict()).encode("utf-8")
             req = urllib.request.Request(
                 f"{target_url}/api/telemetry/publish",
@@ -180,6 +180,23 @@ def handle_sigusr1(metrics: Optional[ServerMetrics] = None, active_client_count:
     )
 
 
+def _register_unix_signal(
+    loop: asyncio.AbstractEventLoop,
+    sig_name: str,
+    callback: Any,
+    description: str
+) -> None:
+    """Registra una señal UNIX en el event loop degradando limpiamente si no está soportada."""
+    sig = getattr(signal, sig_name, None)
+    if sig is None:
+        return
+    try:
+        loop.add_signal_handler(sig, callback)
+        logger.info(f"Signal handler registered for {sig_name} ({description})")
+    except (ValueError, RuntimeError, NotImplementedError) as e:
+        logger.debug(f"Could not register {sig_name} handler: {e}")
+
+
 def setup_signal_handlers(
     loop: asyncio.AbstractEventLoop,
     config: Optional[ServerConfig] = None,
@@ -187,31 +204,17 @@ def setup_signal_handlers(
 ) -> None:
     """
     Registra los manejadores de señales UNIX (SIGHUP, SIGUSR1) en el event loop.
-    Degrada limpiamente en entornos donde estas señales no existen (ej. Windows nativo).
+    Degrada limpiamente en Windows nativo o cuando se ejecuta fuera del hilo principal.
     """
     cfg = config if config is not None else server_config
     met = metrics if metrics is not None else server_metrics
 
-    # Verificar si el sistema operativo y el loop soportan add_signal_handler
     if not hasattr(loop, "add_signal_handler"):
         logger.debug("Event loop does not support add_signal_handler.")
         return
 
-    # SIGHUP: Hot-reload de configuración
-    if hasattr(signal, "SIGHUP"):
-        try:
-            loop.add_signal_handler(signal.SIGHUP, lambda: handle_sighup(cfg))
-            logger.info("Signal handler registered for SIGHUP (Dynamic hot-reload)")
-        except (ValueError, NotImplementedError) as e:
-            logger.debug(f"Could not register SIGHUP handler: {e}")
-
-    # SIGUSR1: Dump de métricas operativas
-    if hasattr(signal, "SIGUSR1"):
-        try:
-            loop.add_signal_handler(signal.SIGUSR1, lambda: handle_sigusr1(met, len(active_clients)))
-            logger.info("Signal handler registered for SIGUSR1 (Metrics dump)")
-        except (ValueError, NotImplementedError) as e:
-            logger.debug(f"Could not register SIGUSR1 handler: {e}")
+    _register_unix_signal(loop, "SIGHUP", lambda: handle_sighup(cfg), "Dynamic hot-reload")
+    _register_unix_signal(loop, "SIGUSR1", lambda: handle_sigusr1(met, len(active_clients)), "Metrics dump")
 
 
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:

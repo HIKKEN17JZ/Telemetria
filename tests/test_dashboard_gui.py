@@ -14,8 +14,11 @@ class TestFleetDashboardGUI(unittest.TestCase):
 
     def setUp(self):
         # Crear ventana oculta para testing sin abrir ventana gráfica en pantalla
-        self.root = tk.Tk()
-        self.root.withdraw()
+        try:
+            self.root = tk.Tk()
+            self.root.withdraw()
+        except tk.TclError:
+            self.skipTest("Entorno gráfico no disponible (TclError)")
         self.state = FleetDashboardState()
         self.view = FleetDashboardView(root=self.root, state=self.state)
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-import random
+import socket
 import threading
 import time
 import urllib.error
@@ -26,6 +26,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 import queue
 
+from src.backoff import ExponentialBackoff
 from src.models import TelemetryPayload, Location, VehicleMetrics
 
 logger = logging.getLogger("DashboardNetwork")
@@ -67,6 +68,8 @@ class NetworkReceiverConfig:
     reconnect_backoff_max: float = 30.0
     request_timeout: float = 2.0
     stream_mode: str = "auto"  # "auto", "stream", "poll"
+    tcp_fallback_host: str = "127.0.0.1"
+    tcp_fallback_port: int = 5000
 
 
 class SSEParser:
@@ -336,20 +339,24 @@ class DashboardNetworkReceiver(threading.Thread):
                     return
                 time.sleep(0.1)
 
-    def _stream_tcp_server(self, host: str = "127.0.0.1", port: int = 5000) -> None:
+    def _stream_tcp_server(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
         """Conexión TCP directa con el servidor de telemetría (fallback sin Docker/Gateway)."""
-        import socket
+        target_host = host or self.config.tcp_fallback_host
+        target_port = port or self.config.tcp_fallback_port
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.config.request_timeout)
         try:
-            sock.connect((host, port))
+            sock.connect((target_host, target_port))
         except Exception as e:
             sock.close()
             raise e
 
         self._current_response = sock
         sock.sendall(b'{"action": "subscribe", "role": "dashboard"}\n')
-        self.set_state(ConnectionState.CONNECTED, message=f"Conectado a Servidor TCP directo ({host}:{port})")
+        self.set_state(
+            ConnectionState.CONNECTED,
+            message=f"Conectado a Servidor TCP directo ({target_host}:{target_port})"
+        )
 
         sock.settimeout(None)
         sock_file = sock.makefile("r", encoding="utf-8")
@@ -373,10 +380,35 @@ class DashboardNetworkReceiver(threading.Thread):
             except Exception:
                 pass
 
+    def _connect_and_stream(self) -> None:
+        """Ejecuta el modo de recepción configurado ('stream', 'poll' o 'auto')."""
+        mode = self.config.stream_mode
+        if mode == "poll":
+            self._poll_fallback()
+            return
+
+        if mode == "stream":
+            self._stream_sse()
+            return
+
+        # Modo 'auto': prioriza SSE del Gateway y hace fallback al servidor TCP directo.
+        try:
+            self._stream_sse()
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as sse_err:
+            logger.debug(f"API Gateway no disponible ({sse_err}).")
+            if not self.is_stopped():
+                self._stream_tcp_server()
+
     def run(self) -> None:
         """Bucle principal del hilo de red con reconexión automática y retroceso exponencial."""
+        backoff = ExponentialBackoff(
+            initial_delay=self.config.reconnect_backoff_base,
+            max_delay=max(self.config.reconnect_backoff_base, self.config.reconnect_backoff_max),
+            multiplier=2.0,
+            jitter=True,
+            jitter_ratio=0.25
+        )
         attempt = 0
-        backoff = self.config.reconnect_backoff_base
 
         while not self.is_stopped():
             try:
@@ -387,42 +419,17 @@ class DashboardNetworkReceiver(threading.Thread):
                     message=state_msg
                 )
 
-                connected = False
-                if self.config.stream_mode in ("stream", "auto"):
-                    try:
-                        self._stream_sse()
-                        connected = True
-                    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as sse_err:
-                        logger.debug(f"API Gateway no disponible ({sse_err}).")
-
-                if not connected and not self.is_stopped() and self.config.stream_mode in ("auto", "poll"):
-                    try:
-                        self._stream_tcp_server(host="127.0.0.1", port=5000)
-                        connected = True
-                    except Exception as tcp_err:
-                        logger.debug(f"Servidor TCP directo no disponible ({tcp_err}).")
-                        raise tcp_err
-                elif not connected and not self.is_stopped():
-                    self._poll_fallback()
-
+                self._connect_and_stream()
                 attempt = 0
-                backoff = self.config.reconnect_backoff_base
+                backoff.reset()
 
             except Exception as exc:
                 if self.is_stopped():
                     break
 
-                jitter = random.uniform(0.8, 1.2)
-                wait_time = min(backoff * jitter, self.config.reconnect_backoff_max)
-                backoff = min(backoff * 2.0, self.config.reconnect_backoff_max)
-
+                wait_time = backoff.next_delay()
                 err_msg = f"Falla de conexión ({exc}). Reintentando en {wait_time:.1f}s..."
                 self.set_state(ConnectionState.RECONNECTING, message=err_msg)
-
-                step = 0.1
-                waited = 0.0
-                while waited < wait_time and not self.is_stopped():
-                    time.sleep(step)
-                    waited += step
+                self._stop_event.wait(timeout=wait_time)
 
         self.set_state(ConnectionState.DISCONNECTED, message="Desconectado.")

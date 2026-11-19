@@ -172,6 +172,27 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(resp["status"], "ACK")
             self.assertEqual(resp["vehicle_id"], f"CAR-{i+1}")
 
+    def test_setup_signal_handlers_in_non_main_thread_does_not_crash(self):
+        """Verifica que registrar señales desde un hilo secundario degrade limpiamente sin RuntimeError."""
+        import threading
+        from server import setup_signal_handlers
+
+        errors = []
+
+        def worker():
+            loop = asyncio.new_event_loop()
+            try:
+                setup_signal_handlers(loop)
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                loop.close()
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join(timeout=2.0)
+        self.assertEqual(errors, [])
+
 
 if __name__ == "__main__":
     unittest.main()

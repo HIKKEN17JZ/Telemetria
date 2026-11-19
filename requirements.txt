@@ -10,7 +10,7 @@ redis>=5.0.0
 fastapi>=0.100.0
 uvicorn[standard]>=0.22.0
 gunicorn>=21.0.0
-httpx2>=2.0.0
+httpx>=0.27.0
 
 # Pruebas automatizadas
 pytest>=8.0.0

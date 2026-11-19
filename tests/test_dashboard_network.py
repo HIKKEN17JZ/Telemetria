@@ -205,6 +205,45 @@ class TestNetworkReceiverUnit(unittest.TestCase):
         self.assertFalse(self.receiver.is_alive())
         self.assertEqual(self.receiver.state, ConnectionState.DISCONNECTED)
 
+    def test_poll_mode_uses_poll_fallback_not_tcp_server(self):
+        """En modo 'poll', run() debe ejecutar _poll_fallback() y nunca _stream_tcp_server()."""
+        cfg = NetworkReceiverConfig(stream_mode="poll", poll_interval=0.05)
+        receiver = DashboardNetworkReceiver(config=cfg, event_queue=self.event_queue)
+
+        def stop_on_call(*args, **kwargs):
+            receiver._stop_event.set()
+
+        with patch.object(receiver, "_poll_fallback", side_effect=stop_on_call) as mock_poll, \
+             patch.object(receiver, "_stream_tcp_server", side_effect=stop_on_call) as mock_tcp, \
+             patch.object(receiver, "_stream_sse", side_effect=stop_on_call) as mock_sse:
+            receiver.run()
+
+        mock_poll.assert_called_once()
+        mock_tcp.assert_not_called()
+        mock_sse.assert_not_called()
+
+    def test_stream_mode_does_not_fallback_to_poll_or_tcp_on_sse_error(self):
+        """En modo 'stream', si SSE falla no debe caer ni en polling REST ni en TCP directo."""
+        import urllib.error
+        cfg = NetworkReceiverConfig(
+            stream_mode="stream",
+            reconnect_backoff_base=0.01,
+            reconnect_backoff_max=0.01
+        )
+        receiver = DashboardNetworkReceiver(config=cfg, event_queue=self.event_queue)
+
+        def fail_sse_and_stop():
+            receiver._stop_event.set()
+            raise urllib.error.URLError("Gateway offline")
+
+        with patch.object(receiver, "_stream_sse", side_effect=fail_sse_and_stop), \
+             patch.object(receiver, "_poll_fallback") as mock_poll, \
+             patch.object(receiver, "_stream_tcp_server") as mock_tcp:
+            receiver.run()
+
+        mock_poll.assert_not_called()
+        mock_tcp.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
