@@ -5,7 +5,18 @@
 [![Code Style](https://img.shields.io/badge/code%20style-Clean%20Code%20%7C%20TDD-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)]()
 
-Proyecto integrador para el examen final de **Computación 2**. Consiste en un sistema distribuido de recolección, procesamiento en tiempo real, persistencia y visualización de telemetría vehicular, diseñado bajo principios de **alta concurrencia I/O**, **resiliencia de red**, **procesamiento paralelo CPU-bound** y **arquitectura limpia**.
+Proyecto integrador para el examen final de **Computación 2**. Consiste en un sistema distribuido de recolección, procesamiento paralelo en segundo plano, persistencia relacional y visualización en tiempo real de telemetría vehicular, diseñado bajo principios de **concurrencia I/O**, **procesamiento distribuido CPU-bound**, **IPC mediante señales UNIX**, **resiliencia de red** y **arquitectura desacoplada**.
+
+---
+
+## 📚 Documentación del Proyecto
+
+* **[INSTALL.md](INSTALL.md):** Guía paso a paso de clonado, entorno virtual, Docker Compose, despliegue y ejecución de pruebas en Linux y Windows.
+* **[INFO.md](INFO.md):** Informe de arquitectura, responsabilidades por entidad y justificación técnica de las decisiones de diseño.
+* **[TODO.md](TODO.md):** Listado de mejoras, bugs detectados y futuras funcionalidades planificadas.
+* **[docs/Requisitos.md](docs/Requisitos.md):** Consigna y requisitos del examen final.
+* **[docs/issues_backlog.md](docs/issues_backlog.md):** Planificación ágil y criterios de aceptación de los 12 issues del proyecto.
+* **Diagramas PlantUML:** [`docs/architecture.puml`](docs/architecture.puml) y [`docs/data_flow.puml`](docs/data_flow.puml).
 
 ---
 
@@ -17,40 +28,38 @@ Proyecto integrador para el examen final de **Computación 2**. Consiste en un s
  │                     (agent.py)                         │
  │  - Simulación física de dinámicas (GPS, Vel, Temp, Comb)│
  │  - Búfer Offline FIFO (Memoria acotada: 1000 items)    │
- │  - Retroceso Exponencial con Jitter (Backoff)          │
+ │  - Exponential Backoff con Jitter + Graceful Shutdown  │
  └──────────────────────────┬─────────────────────────────┘
-                            │ TCP Sockets (Enmarcado '\n')
+                            │ TCP Sockets (JSON + '\n')
                             ▼
  ┌────────────────────────────────────────────────────────┐
  │           SERVIDOR DE INGESTIÓN ASÍNCRONO              │
  │                     (server.py)                        │
  │  - I/O No Bloqueante con asyncio.start_server          │
- │  - Validación estricta de esquemas (src/protocol.py)   │
- │  - IPC: Manejador de señales UNIX (SIGHUP / SIGUSR1)   │
+ │  - Validación de esquemas y ACK/NACK (src/protocol.py) │
+ │  - IPC: Señales UNIX (SIGHUP / SIGUSR1)                │
  └─────────────┬──────────────────────────┬───────────────┘
                │                          │
-    (Despacho) │                          │ (Persistencia directa)
-               ▼                          ▼
- ┌───────────────────────────┐  ┌──────────────────────────┐
- │   REDIS (Message Broker)  │  │   POSTGRESQL 15 (BD)     │
- │       (Puerto: 6380)      │  │      (Puerto: 5435)      │
- └─────────────┬─────────────┘  │  - Series de tiempo      │
-               │                │  - Pool de conexiones    │
-               ▼                │  - Índices temporales    │
- ┌───────────────────────────┐  └──────────────▲───────────┘
- │  CELERY WORKERS (Paralelo)│                 │
- │  - Multiprocessing prefork│─────────────────┘
- │  - Cálculo de geocercas   │ (Persistencia en lotes y alertas)
- │  - Detección de anomalías │
- └───────────────────────────┘
-               │
-               ▼
- ┌────────────────────────────────────────────────────────┐
- │       API GATEWAY & MONITOREO EN TIEMPO REAL           │
- │  - Gunicorn + Uvicorn (Workers procesos e hilos threads)│
- │  - Semi-Frontend de Escritorio en Tkinter              │
- │    (Multithreading: Thread UI + Thread Red vía Queue)  │
- └────────────────────────────────────────────────────────┘
+ (Despacho     │                          │ (Streaming en vivo
+  no bloq.)    ▼                          ▼  vía HTTP POST)
+ ┌───────────────────────────┐  ┌─────────────────────────┐
+ │   REDIS (Message Broker)  │  │      API GATEWAY        │
+ │       (Puerto: 6380)      │  │     (gateway.py)        │
+ └─────────────┬─────────────┘  │ - FastAPI + Gunicorn    │
+               │                │ - Uvicorn Workers/Thrds │
+               ▼                │ - REST + SSE + WS       │
+ ┌───────────────────────────┐  └───────────▲──┬──────────┘
+ │  CELERY WORKERS (Paralelo)│              │  │
+ │  - Multiprocessing prefork│              │  │ SSE / REST
+ │  - Detección de anomalías │              │  ▼
+ │  - Persistencia batch/rep │  ┌───────────┴─────────────┐
+ └─────────────┬─────────────┘  │  DASHBOARD ESCRITORIO   │
+               │                │    (dashboard.py)       │
+               ▼                │  - Tkinter / ttk (MVP)  │
+ ┌───────────────────────────┐  │  - Hilo Red + Queue     │
+ │   POSTGRESQL 15 (BD)      │◄─┤  - Actualización segura │
+ │      (Puerto: 5435)       │  │    con root.after()     │
+ └───────────────────────────┘  └─────────────────────────┘
 ```
 
 ---
@@ -59,26 +68,31 @@ Proyecto integrador para el examen final de **Computación 2**. Consiste en un s
 
 | Desarrollador | Rol | Áreas de Enfoque Principal |
 | :--- | :--- | :--- |
-| **Ale** (`@HIKKEN17JZ`) | **Dev 1** | Agente vehicular CLI, Resiliencia de red con búfer offline, Frontend en **Tkinter** con **Multithreading**. |
+| **Ale** (`@HIKKEN17JZ`) | **Dev 1** | Agente vehicular CLI, Resiliencia de red con búfer offline, Dashboard en **Tkinter** con **Multithreading**. |
 | **Charango** (`@Charango21`) | **Dev 2** | Core del Servidor Asíncrono (`asyncio`), Protocolo de enmarcado (`\n`), **IPC (Señales UNIX)** y **API Gateway (Gunicorn + Uvicorn)**. |
 | **Agus** (`@AgusValdebenito`) | **Dev 3** | Infraestructura con **Docker Compose**, Persistencia en **PostgreSQL**, **Lógica Paralela (Celery)** y **PlantUML**. |
 
 ---
 
-## 🚀 Estado Actual del Desarrollo
+## 🚀 Estado del Desarrollo (3 Sprints / 12 Issues)
 
-### ✅ Sprint 1 — Pipeline Base y Transmisión Concurrente (Completado)
-* **[Issue #1] Infraestructura base con Docker Compose:** Servicios de PostgreSQL 15 y Redis 7 con *healthchecks*, redes puente y volúmenes persistentes.
-* **[Issue #2] Core del Servidor TCP Asíncrono:** Servidor de alta concurrencia I/O implementado con `asyncio.start_server`, `StreamReader` y `StreamWriter`.
-* **[Issue #3] Agente vehicular CLI:** Emisor de métricas configurable por línea de comandos (`argparse`) con simulación física realista.
+### 🏁 Sprint 1 — Pipeline Base y Transmisión Concurrente
+* **[Issue #1] Infraestructura base con Docker Compose:** PostgreSQL 15, Redis 7 y worker Celery con *healthchecks*, red puente (`telemetria_net`) y volúmenes persistentes.
+* **[Issue #2] Core del Servidor TCP Asíncrono:** Servidor concurrente con `asyncio.start_server`, `StreamReader` y `StreamWriter`.
+* **[Issue #3] Agente vehicular CLI:** Emisor configurable por CLI (`argparse`) con simulación física de trayectorias y métricas.
 
-### ⚙️ Sprint 2 — Persistencia, Protocolo y Resiliencia (Completado)
-* **[Issue #4] Persistencia en PostgreSQL (`src/database.py`):** Connection pool seguro (`psycopg_pool`), transacciones ACID y consultas optimizadas para series de tiempo.
-* **[Issue #5] Protocolo de comunicación y validación (`src/protocol.py`):** Enmarcado por fin de línea `\n`, deserialización robusta y generación de respuestas `ACK`/`NACK`.
-* **[Issue #6] Conector TCP resiliente con Búfer Offline (`src/buffer.py`, `src/backoff.py`):**
-  * **Búfer FIFO en memoria acotado:** Acumula mediciones si el servidor se cae y las descarga secuencialmente en ráfaga al reconectar.
-  * **Exponential Backoff con Jitter:** Evita sobrecargas en reconexiones calculando esperas progresivas con dispersión aleatoria.
-  * **Graceful Shutdown:** Captura señales `SIGINT` (Ctrl+C) y `SIGTERM` para liberar sockets y recursos limpiamente.
+### ⚙️ Sprint 2 — Persistencia, Protocolo, IPC y Resiliencia
+* **[Issue #4] Persistencia en PostgreSQL (`src/database.py`):** Connection pool con `psycopg_pool`, transacciones seguras y esquema relacional con índices temporales (`init_db.sql`).
+* **[Issue #5] Protocolo y validación (`src/protocol.py`):** Enmarcado delimitado por `\n`, validación estricta de rangos/esquemas y respuestas `ACK`/`NACK`.
+* **[Issue #6] Conector TCP resiliente (`src/buffer.py`, `src/backoff.py`, `src/network.py`):** Búfer FIFO acotado offline, cálculo de *exponential backoff* con jitter y apagado ordenado (`SIGINT`/`SIGTERM`).
+* **[Issue #7] Celery y procesamiento paralelo (`src/celery_app.py`, `src/tasks.py`):** Workers `prefork` con Redis como broker/backend, serialización JSON y detección de umbrales con reintentos automáticos.
+* **[Issue #8] Despacho asíncrono e IPC (`server.py`):** Despacho no bloqueante hacia Celery (`run_in_executor`) y manejadores de señales UNIX (`SIGHUP` y `SIGUSR1`).
+* **[Issue #9] Persistencia masiva, reportes y PlantUML:** Inserción por lotes (`executemany`), snapshots agregados (`fleet_reports`) y diagramas en `docs/`.
+
+### 🖥️ Sprint 3 — Dashboard Tkinter, API Gateway y Tiempo Real
+* **[Issue #10] Dashboard de Escritorio Tkinter (`src/dashboard_gui.py`, `src/dashboard_model.py`):** Interfaz gráfica desacoplada (MVP + Observer) con KPIs, tabla de vehículos y visor de alertas coloreadas.
+* **[Issue #11] API Gateway (`gateway.py`, `src/gateway.py`, `gunicorn.conf.py`):** FastAPI servida con Gunicorn + Uvicorn workers/threads, endpoints REST (`/api/vehicles`, `/api/alerts`, `/api/stats`, `/api/system/concurrency`), SSE (`/api/stream`) y WebSockets (`/ws`).
+* **[Issue #12] Integración en Tiempo Real Multithreading (`src/dashboard_network.py`, `dashboard.py`):** Hilo secundario demonio conectado por `queue.Queue` y `root.after()` al bucle principal de Tkinter, con indicador de conectividad y panel de simulación.
 
 ---
 
@@ -86,132 +100,108 @@ Proyecto integrador para el examen final de **Computación 2**. Consiste en un s
 
 ```text
 .
-├── agent.py                     # Punto de entrada del Agente Vehicular CLI (Issue #3 & #6)
-├── server.py                    # Punto de entrada del Servidor TCP Asíncrono (Issue #2, #5 & #8)
-├── gateway.py                   # API Gateway con Gunicorn/Uvicorn (Issue #11)
-├── dashboard.py                 # Dashboard de Monitoreo de Escritorio en Tkinter (Issue #10 & #12)
-├── boot.ps1                     # Lanzador rápido interactivo para Windows PowerShell
-├── boot.sh                      # Lanzador rápido interactivo para Bash / Linux
-├── docker-compose.yml           # Orquestación de infraestructura (Postgres + Redis + Celery)
-├── init_db.sql                  # Esquema DDL inicial e índices para PostgreSQL
-├── requirements.txt             # Dependencias del proyecto Python
+├── agent.py                     # Punto de entrada del Agente Vehicular CLI
+├── server.py                    # Punto de entrada del Servidor TCP Asíncrono + IPC
+├── gateway.py                   # Punto de entrada del API Gateway (FastAPI / Uvicorn)
+├── dashboard.py                 # Punto de entrada del Dashboard de Escritorio Tkinter
+├── gunicorn.conf.py             # Configuración Gunicorn (UvicornWorker + threads)
+├── docker-compose.yml           # Orquestación: PostgreSQL + Redis + Celery Worker
+├── Dockerfile                   # Imagen Python 3.14 para el worker de Celery
+├── init_db.sql                  # DDL inicial, constraints e índices PostgreSQL
+├── pytest.ini                   # Configuración de pytest y pytest-asyncio
+├── requirements.txt             # Dependencias Python del proyecto
 ├── .env.example                 # Plantilla de variables de entorno
-├── docs/                        # Documentación técnica y diagramas PlantUML
-│   ├── issues_backlog.md        # Planificación ágil y especificación de los 12 issues
-│   ├── architecture.puml        # Diagrama de arquitectura general de componentes
-│   └── data_flow.puml           # Diagrama de flujo de datos y secuencia extremo a extremo
-├── src/                         # Código fuente modular (Clean Architecture)
-│   ├── backoff.py               # Algoritmo de retroceso exponencial con jitter
-│   ├── buffer.py                # Búfer circular FIFO para tolerancia a caídas
-│   ├── celery_app.py            # Instancia de Celery con broker Redis y serialización JSON
-│   ├── cli.py                   # Parser y validación estricta con argparse
-│   ├── dashboard_gui.py         # Interfaz gráfica de escritorio en Tkinter / ttk (MVP)
-│   ├── dashboard_model.py       # Modelo de estado del dashboard y evaluador de reglas
-│   ├── dashboard_network.py     # Hilo secundario (daemon thread) con queue.Queue y SSE/REST
-│   ├── database.py              # Pool de conexiones y capa de datos PostgreSQL
-│   ├── gateway.py               # Endpoints REST, SSE y WebSockets (FastAPI + Broadcaster)
-│   ├── models.py                # Modelos de dominio fuertemente tipados
-│   ├── network.py               # Cliente TCP socket resiliente
-│   ├── protocol.py              # Enmarcado, validación de esquemas y ACK/NACK
-│   ├── simulator.py             # Generador sintético de cinemática vehicular
-│   └── tasks.py                 # Tareas Celery paralelas (CPU-bound) y persistencia batch
-└── tests/                       # Suite de pruebas automatizadas (TDD)
-    ├── test_agent.py            # Tests de inicialización y ciclo de vida del agente
-    ├── test_backoff.py          # Tests del cálculo de retardos y jitter
-    ├── test_buffer.py           # Tests del búfer FIFO y descarte acotado
-    ├── test_cli.py              # Tests del parser de argumentos y validaciones
-    ├── test_dashboard_gui.py    # Tests unitarios de componentes visuales Tkinter
-    ├── test_dashboard_model.py  # Tests unitarios de lógica de negocio y umbrales de alerta
-    ├── test_dashboard_network.py# Tests unitarios de red multithreading, SSE parser y backoff
-    ├── test_dashboard_gui_multithreading.py # Tests de consumo de cola y seguridad de hilos
-    ├── test_dashboard_e2e_multithreading.py # Test e2e mock gateway + receiver + Tkinter
-    ├── test_database.py         # Tests de persistencia relacional
-    ├── test_gateway.py          # Tests del API Gateway y diagnóstico de concurrencia
-    ├── test_integration_e2e.py  # Test de integración extremo a extremo Server-Agent
-    ├── test_network.py          # Tests de conectividad TCP con socket mock
-    ├── test_protocol.py         # Tests de validación de tramas y enmarcado
-    ├── test_resilient_network.py# Tests de tolerancia a caídas y vaciado de búfer
-    ├── test_server_ipc_celery.py# Tests de señales UNIX (SIGHUP/SIGUSR1) y despacho Celery
-    └── test_simulator.py        # Tests de coherencia física y modelos
+├── INSTALL.md                   # Guía de instalación, despliegue y ejecución
+├── INFO.md                      # Informe de decisiones de diseño y justificaciones
+├── TODO.md                      # Lista de mejoras, bugs conocidos y roadmap
+├── docs/                        # Requisitos, backlog y diagramas PlantUML
+│   ├── Requisitos.md
+│   ├── issues_backlog.md
+│   ├── architecture.puml / .png
+│   └── data_flow.puml / .png
+├── src/                         # Código fuente modular
+│   ├── backoff.py
+│   ├── buffer.py
+│   ├── celery_app.py
+│   ├── cli.py
+│   ├── dashboard_gui.py
+│   ├── dashboard_model.py
+│   ├── dashboard_network.py
+│   ├── database.py
+│   ├── gateway.py
+│   ├── models.py
+│   ├── network.py
+│   ├── protocol.py
+│   ├── simulator.py
+│   └── tasks.py
+└── tests/                       # Suite de pruebas unitarias, integración y E2E
 ```
 
 ---
 
-## ⚡ Guía de Inicio Rápido
+## ⚡ Uso Básico
 
-### Requisitos Previos
-* **Python 3.10 o superior**
-* **Docker y Docker Compose** (opcional para levantar base de datos PostgreSQL y broker Redis)
+Para la instalación detallada de dependencias y entorno virtual, consulta **[INSTALL.md](INSTALL.md)**.
 
-### Instalación de Dependencias
+### 1. Infraestructura base (Docker Compose)
 ```bash
-pip install -r requirements.txt
-```
-
----
-
-### Opción A: Usando los Scripts de Arranque Rápido (Recomendado)
-
-#### En Windows (PowerShell):
-```powershell
-# Lanzar la DEMO completa (Abre 3 ventanas: Servidor + 2 Vehículos en paralelo)
-.\boot.ps1 demo
-
-# O abrir el menú interactivo:
-.\boot.ps1
-```
-
-#### En Linux / macOS / Git Bash:
-```bash
-chmod +x boot.sh
-./boot.sh demo
-```
-
----
-
-### Opción B: Ejecución Manual
-
-#### 1. Iniciar la infraestructura (Opcional):
-```bash
+cp .env.example .env
 docker compose up -d
-docker compose ps
 ```
 
-#### 2. Iniciar el Servidor de Ingestión TCP:
+### 2. Servidor TCP de Ingestión
 ```bash
-python server.py --host 127.0.0.1 --port 5000
+python server.py --host 0.0.0.0 --port 5000
 ```
 
-#### 3. Iniciar Agentes Vehiculares (en terminales separadas):
+### 3. API Gateway
 ```bash
-# Vehículo 1 (Automóvil con frecuencia de 2s):
-python agent.py --vehicle-id AUTO-001 --interval 2.0
+# En Linux con Gunicorn + Uvicorn Workers (recomendado):
+gunicorn -c gunicorn.conf.py gateway:app
 
-# Vehículo 2 (Camión con frecuencia de 1s):
-python agent.py --vehicle-id CAMION-002 --interval 1.0
+# O multiplataforma con Uvicorn directo:
+python gateway.py --host 0.0.0.0 --port 8000 --workers 1
 ```
 
-#### Opciones de configuración del Agente CLI (`agent.py --help`):
-* `--vehicle-id`: Identificador único del vehículo (default: `AUTO-001`).
-* `--server-host`: IP o hostname del servidor TCP (default: `127.0.0.1`).
-* `--server-port`: Puerto TCP del servidor (default: `5000`).
-* `--interval`: Intervalo de muestreo en segundos (default: `2.0`).
-* `--buffer-size`: Capacidad del búfer offline en memoria (default: `1000`).
-* `--max-backoff`: Tiempo máximo de reintento en segundos (default: `30.0`).
+### 4. Agentes Vehiculares CLI
+```bash
+python agent.py --vehicle-id AUTO-001 --server-host 127.0.0.1 --server-port 5000 --interval 2.0
+python agent.py --vehicle-id CAMION-002 --server-host 127.0.0.1 --server-port 5000 --interval 1.0
+```
+
+Opciones principales de `agent.py --help`:
+* `--vehicle-id`: Identificador único del vehículo (default: `AUTO-001`)
+* `--server-host`: Host del servidor TCP (default: `127.0.0.1`)
+* `--server-port`: Puerto del servidor TCP (default: `5000`)
+* `--interval`: Frecuencia de envío en segundos (default: `2.0`)
+* `--mode`: Modo de generación (`simulation` o `manual`, default: `simulation`)
+* `--buffer-size`: Capacidad del búfer offline en memoria (default: `1000`)
+* `--max-backoff`: Tope de espera para reconexión en segundos (default: `30.0`)
+
+### 5. Dashboard Tkinter
+```bash
+# Conectado al API Gateway en tiempo real:
+python dashboard.py --gateway-url http://127.0.0.1:8000 --stream-mode auto
+
+# Modo offline (pruebas locales con la botonera):
+python dashboard.py --offline
+```
 
 ---
 
-## 🧪 Ejecución de Pruebas Automatizadas (TDD)
+## 🧪 Ejecución de Pruebas Automatizadas
 
-El proyecto se desarrolla bajo metodología **Test-Driven Development (TDD)** con una cobertura integral de pruebas unitarias y de integración de red:
+Con las dependencias instaladas en tu entorno virtual (`.venv`):
 
 ```bash
-# Ejecutar todas las pruebas unitarias y de integración del proyecto (54 tests passing):
-python -m unittest tests/test_dashboard_model.py tests/test_dashboard_gui.py tests/test_dashboard_network.py tests/test_dashboard_gui_multithreading.py tests/test_dashboard_e2e_multithreading.py tests/test_agent.py tests/test_cli.py tests/test_simulator.py tests/test_network.py tests/test_buffer.py tests/test_backoff.py tests/test_resilient_network.py tests/test_integration_e2e.py
+# Ejecutar toda la suite con pytest:
+pytest -v
 
-# O mediante los lanzadores automatizados:
-.\boot.ps1 test
-./boot.sh test
+# En entornos Linux sin servidor gráfico ($DISPLAY):
+pytest -v --ignore=tests/test_dashboard_gui.py
+
+# Alternativa con unittest estándar (módulos sin dependencias externas):
+python3 -m unittest discover -s tests -v
 ```
 
 ---
