@@ -68,8 +68,6 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> **Nota sobre `requirements.txt`:** Si en tu entorno aparece un error al instalar `httpx2>=2.0.0`, instala `httpx` (`pip install httpx`) para poder ejecutar `TestClient` de FastAPI en las pruebas del API Gateway.
-
 ---
 
 ## 5. Despliegue de Infraestructura con Docker Compose

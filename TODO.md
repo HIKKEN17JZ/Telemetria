@@ -12,8 +12,6 @@ Este documento detalla los problemas detectados durante la auditoría técnica d
   - En `DashboardNetworkReceiver.run()`, cuando `stream_mode="poll"` entra incorrectamente a `_stream_tcp_server("127.0.0.1", 5000)` en lugar de `_poll_fallback()`, y cuando `stream_mode="stream"` falla el SSE cae al polling REST. Además, desparametrizar el host/puerto TCP hardcoded (`127.0.0.1:5000`).
 - [ ] **Aplicar efectivamente el *Exponential Backoff* en el bucle del Agente (`agent.py` / `src/network.py`):**
   - Actualmente `ExponentialBackoff.next_delay()` calcula y loguea el retardo, pero `AgentApp.run()` siempre duerme `time.sleep(self.config.interval)` sin respetar el tiempo calculado de backoff cuando la conexión está caída.
-- [ ] **Corregir dependencia `httpx2` en `requirements.txt`:**
-  - Reemplazar `httpx2>=2.0.0` por `httpx>=0.27.0` (requerido por `fastapi.testclient.TestClient`).
 - [ ] **Manejar entorno sin display (`TkError`) en `tests/test_dashboard_gui.py`:**
   - Agregar `try/except tk.TclError: self.skipTest(...)` en `setUp()` al igual que en `tests/test_dashboard_gui_multithreading.py` y `tests/test_dashboard_e2e_multithreading.py`, para que la suite completa pueda ejecutarse en servidores Linux sin X11/Wayland (CI/CD).
 
